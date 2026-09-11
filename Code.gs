@@ -12,7 +12,8 @@
 
 const APP = {
   name: 'Desk Stats',
-  timeZone: 'America/Chicago',
+  build: 'DS-2026-09-11-08', /* the pages carry the same stamp; a mismatch is reported on screen */
+  timeZone: 'America/Chicago',  /* every date in this script is worked out in this zone, never in the project's own clock setting */
   campuses: ['Smyrna', 'Moore County', 'Fayetteville', 'McMinnville'],
   blocks: ['7:30 AM - Noon', 'Noon - 4:30 PM', '4:30 PM - Close'],
   modes: ['In person', 'Remote'],
@@ -285,6 +286,7 @@ function getConfig() {
     parsed.serverNow = Date.now();
     parsed.today = todayKey_(new Date());
     parsed.webAppUrl = webAppUrl_();
+    parsed.build = APP.build;
     return parsed;
   }
   const ss = getWorkbook_();
@@ -305,6 +307,7 @@ function getConfig() {
   };
   cache.put('config', JSON.stringify(config), 60);
   config.webAppUrl = webAppUrl_();
+  config.build = APP.build;
   return config;
 }
 
@@ -336,16 +339,10 @@ function getTodayCounts(campusName) {
 function getBoard(campusName) {
   const ss = getWorkbook_();
   const config = getConfig();
-  const now = new Date();
-  const today = todayKey_(now);
-  const weekStart = dateOnly_(now);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  const today = todayKey_(new Date());
+  const weekStart = addDaysKey_(today, -weekdayIndex_(today));
   const days = [];
-  for (let i = 0; i < 7; i += 1) {
-    const d = new Date(weekStart.getTime());
-    d.setDate(d.getDate() + i);
-    days.push(todayKey_(d));
-  }
+  for (let i = 0; i < 7; i += 1) days.push(addDaysKey_(weekStart, i));
   const wanted = config.campuses.filter(c => !campusName || campusName === 'all' || c.name === campusName);
   const logs = logRows_(ss);
   const gates = gateRows_(ss);
@@ -530,7 +527,7 @@ function recordTap(tap) {
       const net = todayNet_(sh, todayKey_(now), campus, category, mode);
       if (net <= 0) return { ok: false, refused: true, tapId: tapId, delta: delta, net: 0, reason: 'Nothing to take off: today\'s count for ' + category + ', ' + mode + ' at ' + campus + ' is already 0 in the sheet.' };
     }
-    sh.appendRow([now, dateOnly_(now), now.getHours(), weekday_(now), campus, category, mode, delta, whoAmI_(t.device), 'tap', tapId]);
+    sh.appendRow([now, dateOnly_(now), hourOf_(now), weekday_(now), campus, category, mode, delta, whoAmI_(t.device), 'tap', tapId]);
     return { ok: true, tapId: tapId, delta: delta, when: now.toISOString() };
   } finally {
     lock.releaseLock();
@@ -565,7 +562,7 @@ function getRecent(campus, limit) {
     const v = rows[i];
     if (String(v[9]).trim() !== 'tap') continue;
     if (campus && String(v[4]).trim() !== String(campus).trim()) continue;
-    const when = v[0] instanceof Date ? v[0] : null;
+    const when = (v[0] && typeof v[0].getTime === 'function') ? v[0] : null;
     out.push({
       when: when ? Utilities.formatDate(when, APP.timeZone, 'EEE MMM d, h:mm:ss a') : String(v[0]),
       who: String(v[8] || ''), category: String(v[5]), mode: String(v[6]), delta: Number(v[7]) || 0, tapId: String(v[10] || ''),
@@ -673,13 +670,29 @@ function whoAmI_(device) {
   return email || String(device || '');
 }
 
+/* Dates. A "key" is the text yyyy-mm-dd in the app's zone. Nothing here reads the
+   project's own clock setting, so the sheet dates stay right whatever that is set to. */
 function dateOnly_(d) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return dateFromKey_(todayKey_(d));
 }
-
 function dateFromKey_(key) {
-  const parts = key.split('-').map(Number);
-  return new Date(parts[0], parts[1] - 1, parts[2]);
+  return Utilities.parseDate(String(key).trim(), APP.timeZone, 'yyyy-MM-dd');
+}
+function hourOf_(d) {
+  return Number(Utilities.formatDate(d, APP.timeZone, 'H'));
+}
+function weekday_(d) {
+  return Utilities.formatDate(d, APP.timeZone, 'EEEE');
+}
+function weekdayIndex_(key) {
+  const p = String(key).split('-').map(Number);
+  return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
+}
+function addDaysKey_(key, n) {
+  const p = String(key).split('-').map(Number);
+  const d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + n));
+  const mm = d.getUTCMonth() + 1, dd = d.getUTCDate();
+  return d.getUTCFullYear() + '-' + (mm < 10 ? '0' : '') + mm + '-' + (dd < 10 ? '0' : '') + dd;
 }
 
 function todayKey_(d) {
@@ -687,7 +700,7 @@ function todayKey_(d) {
 }
 
 function keyOf_(cell) {
-  if (cell instanceof Date) return Utilities.formatDate(cell, APP.timeZone, 'yyyy-MM-dd');
+  if (cell && typeof cell.getTime === 'function') return Utilities.formatDate(cell, APP.timeZone, 'yyyy-MM-dd');
   const s = String(cell).trim();
   const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) return m[3] + '-' + ('0' + m[1]).slice(-2) + '-' + ('0' + m[2]).slice(-2);

@@ -214,6 +214,7 @@ var CONFIG = <?!= configJson ?>;
 (function () {
   'use strict';
 
+  var PAGE_BUILD = 'DS-2026-09-11-08';
   var STORE = { campus: 'deskstats.campus', device: 'deskstats.device', queue: 'deskstats.queue.v2' };
   var COOLDOWN_MS = 5000;
   var state = { campus: null, counts: {}, gate: {}, queue: [], sending: false, cooldowns: {}, pad: null, today: null, clockOffset: 0 };
@@ -268,6 +269,14 @@ var CONFIG = <?!= configJson ?>;
     else note.textContent = 'Everything is saved to the sheet.';
   }
 
+  /* The script behind this page must have every function the page calls; if not, say which and why. */
+  function server(name) {
+    if (!(window.google && google.script && google.script.run && typeof google.script.run[name] === 'function')) {
+      throw new Error('The script behind this page has no function named ' + name + '. Paste the current Code.gs into the editor, save it, and publish a new version (or use the test address).');
+    }
+    return google.script.run;
+  }
+
   /* ---------- the send queue: nothing is lost if the wifi drops ---------- */
   function persistQueue() { save(STORE.queue, state.queue); }
   function enqueue(item) { item.at = Date.now(); state.queue.push(item); persistQueue(); setNet(true); flush(); }
@@ -303,7 +312,9 @@ var CONFIG = <?!= configJson ?>;
       setNet(false, message);
       setTimeout(flush, item.nextAt - Date.now() + 50);
     };
-    var run = google.script.run.withSuccessHandler(function (res) { onResult(item, res); finish(); }).withFailureHandler(fail);
+    var run;
+    try { run = server(item.kind === 'tap' ? 'recordTap' : 'recordGate').withSuccessHandler(function (res) { onResult(item, res); finish(); }).withFailureHandler(fail); }
+    catch (missing) { state.sending = false; showBanner(missing.message); setNet(false, 'script out of date'); return; }
     if (item.kind === 'tap') run.recordTap(item.payload);
     else if (item.kind === 'gate') run.recordGate(item.payload);
     else finish();
@@ -491,7 +502,9 @@ var CONFIG = <?!= configJson ?>;
     body.appendChild(recentRow([{ text: 'Reading the sheet' }, { text: '' }, { text: '' }, { text: '' }]));
     var pending = state.queue.filter(function (it) { return it.kind === 'tap' && it.payload.campus === state.campus; }).slice().reverse();
     var campus = state.campus;
-    google.script.run
+    var recentRun;
+    try { recentRun = server('getRecent'); } catch (missing) { body.innerHTML = ''; body.appendChild(recentRow([{ text: missing.message }, { text: '' }, { text: '' }, { text: '' }])); return; }
+    recentRun
       .withSuccessHandler(function (rows) {
         if (campus !== state.campus) return;
         body.innerHTML = '';
@@ -632,7 +645,9 @@ var CONFIG = <?!= configJson ?>;
   function fetchToday() {
     if (!state.campus || CONFIG.error) return;
     var campus = state.campus;
-    google.script.run
+    var todayRun;
+    try { todayRun = server('getTodayCounts'); } catch (missing) { showBanner(missing.message); return; }
+    todayRun
       .withSuccessHandler(function (res) {
         if (campus !== state.campus) return;
         if (res && res.date && res.date !== state.today) rollDay(res.date);
@@ -679,6 +694,9 @@ var CONFIG = <?!= configJson ?>;
     el('boardLink').href = CONFIG.webAppUrl + '?view=week';
     el('dashTop').href = CONFIG.webAppUrl + '?view=trends';
     el('dashLink').href = CONFIG.webAppUrl + '?view=trends';
+  }
+  if (!CONFIG.error && CONFIG.build !== PAGE_BUILD) {
+    showBanner('This page and Code.gs are from different rounds (page ' + PAGE_BUILD + ', script ' + (CONFIG.build || 'older than the stamps') + '). Paste the current copies of Code.gs, Index, Board and Dashboard, save each, and publish a new version (or use the test address).');
   }
   if (!CONFIG.error && !(CONFIG.campuses && CONFIG.campuses.length)) {
     showBanner('No campuses were found, so there is nothing to tap. In the script editor open Code.gs, pick setup in the function list, and click Run. Then reload this page.');

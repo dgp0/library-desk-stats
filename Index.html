@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<base target="_top">
+<title>Desk Stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;700;800&family=Roboto+Slab:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #ffffff; --ink: #212721; --muted: #494949; --gray: #bbbcbc;
+    --green: #006633; --green-dark: #00492a; --green-bright: #009639; --green-wash: rgba(0, 102, 51, .10);
+    --yellow: #ffe100; --yellow-wash: rgba(255, 225, 0, .30);
+    --err: #c22f1f; --err-wash: rgba(194, 47, 31, .10);
+    --sans: "Raleway", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --slab: "Roboto Slab", Rockwell, Georgia, serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    --shadow-sm: 3px 3px 0 var(--ink); --shadow: 4px 4px 0 var(--ink); --shadow-lg: 5px 5px 0 var(--ink);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-weight: 500; font-size: 15px; line-height: 1.4; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+  body { padding-bottom: 130px; }
+  button { font-family: var(--sans); color: var(--ink); border-radius: 0; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+  button:focus-visible, a:focus-visible { outline: 4px solid var(--yellow); outline-offset: 2px; }
+  a { color: var(--green); font-weight: 700; }
+  [hidden] { display: none !important; }
+
+  .masthead { border-top: 8px solid var(--yellow); border-bottom: 10px solid var(--ink); padding: 12px 16px 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .wordmark { font-family: var(--slab); font-weight: 700; font-size: 28px; letter-spacing: -0.02em; line-height: 1; margin: 0; }
+  .kicker { font-family: var(--mono); font-weight: 700; font-size: 10.5px; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+  .where { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .campus-badge { font-family: var(--mono); font-weight: 700; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; padding: 8px 12px; border: 3px solid var(--ink); background: var(--yellow); }
+
+  .btn { border: 3px solid var(--ink); background: var(--paper); color: var(--ink); font-weight: 800; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 10px 16px; box-shadow: var(--shadow-sm); transition: transform .05s, box-shadow .05s; }
+  .btn:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+  .btn:disabled { background: var(--gray); color: var(--ink); box-shadow: none; transform: none; cursor: not-allowed; }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover { background: var(--green-dark); }
+  .btn-yellow { background: var(--yellow); color: var(--ink); }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .banner { border: 3px solid var(--err); border-left-width: 10px; background: var(--err-wash); color: var(--ink); padding: 12px 14px; margin: 16px; font-weight: 700; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .banner button { flex: none; }
+  .status { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; background: var(--green); border-radius: 50%; display: inline-block; flex: none; }
+  .square { width: 10px; height: 10px; border: 3px solid var(--ink); display: inline-block; flex: none; }
+
+  .ask { font-family: var(--slab); font-size: 22px; margin: 8px 0 14px; }
+  .campus-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+  .campus-btn { min-height: 110px; font-size: 20px; letter-spacing: .06em; }
+  .campus-btn.last { outline: 6px solid var(--yellow); outline-offset: 0; }
+  .campus-btn small { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; margin-top: 8px; opacity: .8; }
+
+  .cat { display: grid; grid-template-columns: minmax(180px, 1.4fr) 1fr 1fr; gap: 12px; align-items: stretch; border-bottom: 3px solid var(--ink); padding: 12px 0; }
+  .cat:last-child { border-bottom: 6px solid var(--ink); }
+  .cat-name { font-weight: 800; font-size: 17px; letter-spacing: -0.01em; }
+  .cat-help { color: var(--muted); font-size: 12.5px; margin-top: 4px; line-height: 1.35; }
+  .tap { min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; font-size: 14px; }
+  .tap .count { font-family: var(--mono); font-size: 26px; letter-spacing: -0.02em; line-height: 1; min-width: 2ch; text-align: right; }
+  .tap.flash { background: var(--ink) !important; color: #fff !important; }
+
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 26px 0 10px; border-bottom: 6px solid var(--ink); padding-bottom: 6px; flex-wrap: wrap; }
+  .section-head h2 { font-family: var(--slab); font-size: 20px; margin: 0; }
+  .section-head .kicker { margin: 0; }
+
+  .gate-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; align-items: stretch; }
+  .gate-btn { min-height: 92px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; text-transform: none; letter-spacing: 0; font-size: 14px; padding: 12px 14px; text-align: left; }
+  .gate-btn .kicker { color: inherit; opacity: .85; margin: 0; }
+  .gate-btn .count { font-family: var(--mono); font-size: 30px; line-height: 1; }
+  .gate-btn .empty { font-size: 12px; font-weight: 700; color: var(--muted); }
+  .gate-btn.now { outline: 6px solid var(--yellow); outline-offset: 0; }
+  .gate-total { border: 3px solid var(--ink); background: var(--green-wash); padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; min-height: 92px; }
+  .gate-total .count { font-family: var(--mono); font-size: 30px; line-height: 1; }
+
+  .referral { border: 3px solid var(--ink); border-left-width: 10px; padding: 10px 14px; margin-top: 22px; font-size: 13px; }
+  .foot { margin-top: 18px; color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+
+  .undo-bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--ink); color: #fff; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 6px solid var(--yellow); z-index: 20; }
+  .undo-bar .msg { font-weight: 700; }
+  .undo-bar .msg .kicker { color: #fff; opacity: .8; margin: 0 0 2px; }
+  .undo-bar .btn { box-shadow: 3px 3px 0 var(--yellow); }
+  .undo-bar .btn:hover { box-shadow: 4px 4px 0 var(--yellow); }
+  .undo-bar .btn:active { box-shadow: 1px 1px 0 var(--yellow); }
+
+  .scrim { position: fixed; inset: 0; background: rgba(33, 39, 33, .55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 30; }
+  .dialog { background: var(--paper); border: 3px solid var(--ink); box-shadow: var(--shadow-lg); width: min(420px, 100%); padding: 16px; }
+  .dialog h3 { font-family: var(--slab); margin: 0 0 4px; font-size: 20px; }
+  .dialog .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+  .display { border: 3px solid var(--ink); font-family: var(--mono); font-size: 40px; text-align: right; padding: 8px 14px; min-height: 66px; margin-bottom: 12px; background: var(--yellow-wash); }
+  .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .key { min-height: 62px; font-family: var(--mono); font-size: 24px; letter-spacing: 0; text-transform: none; }
+  .key.word { font-family: var(--sans); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+  .dialog-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; }
+  .inline-err { color: var(--err); font-weight: 700; font-size: 13px; margin-top: 8px; min-height: 1.2em; }
+
+  @media (max-width: 640px) {
+    .cat { grid-template-columns: 1fr; gap: 8px; }
+    .tap { min-height: 64px; }
+    .wordmark { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div>
+    <h1 class="wordmark">Desk Stats</h1>
+    <div class="kicker">Motlow State Community College Libraries</div>
+  </div>
+  <div class="where">
+    <span id="campusBadge" class="campus-badge">No campus chosen</span>
+    <button id="changeCampus" class="btn" type="button" disabled title="Choose a campus first">Change campus</button>
+    <span id="netStatus" class="status"><span class="dot" aria-hidden="true"></span><span id="netText">Connected</span></span>
+  </div>
+</header>
+
+<div id="banner" class="banner" hidden role="alert"><span id="bannerText"></span><button id="bannerClose" class="btn" type="button">Close</button></div>
+
+<main class="wrap">
+  <section id="campusScreen">
+    <div class="ask">Which campus are you at?</div>
+    <div id="campusGrid" class="campus-grid"></div>
+  </section>
+
+  <section id="tapScreen" hidden>
+    <div class="section-head"><h2>Questions and help</h2><span class="kicker" id="todayLabel"></span></div>
+    <div id="grid"></div>
+
+    <div class="section-head"><h2>Gate Count</h2><span class="kicker">Tap a time block, type the number, save</span></div>
+    <div id="gateGrid" class="gate-grid"></div>
+
+    <div class="referral" id="referral"></div>
+    <div class="foot">
+      <span id="queueNote">Everything is saved to the sheet.</span>
+      <a id="sheetLink" href="#" target="_blank" rel="noopener">Open the spreadsheet</a>
+      <a id="boardLink" href="?view=board" target="_blank" rel="noopener">Open the live board</a>
+      <span id="deviceNote"></span>
+    </div>
+  </section>
+</main>
+
+<div id="undoBar" class="undo-bar" hidden>
+  <div class="msg"><div class="kicker">Recorded</div><div id="undoText"></div></div>
+  <div>
+    <button id="undoBtn" class="btn btn-yellow" type="button">Undo (<span id="undoSecs">120</span> s)</button>
+    <button id="undoClose" class="btn" type="button">Keep</button>
+  </div>
+</div>
+
+<div id="keypad" class="scrim" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="padTitle">
+    <h3 id="padTitle">Gate count</h3>
+    <div class="sub" id="padSub"></div>
+    <div class="display" id="padDisplay" aria-live="polite">0</div>
+    <div class="keys" id="padKeys"></div>
+    <div class="inline-err" id="padErr"></div>
+    <div class="dialog-actions">
+      <button id="padCancel" class="btn" type="button">Cancel</button>
+      <button id="padSave" class="btn btn-green" type="button" disabled title="Type a number first">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var CONFIG = <?!= configJson ?>;
+(function () {
+  'use strict';
+
+  var STORE = { campus: 'deskstats.campus', device: 'deskstats.device', queue: 'deskstats.queue.v1' };
+  var state = { campus: null, counts: {}, gate: {}, queue: [], sending: false, undo: null, undoTimer: null, pad: null, today: null, clockOffset: 0 };
+
+  function el(id) { return document.getElementById(id); }
+  function load(key, fallback) { try { var v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } }
+  function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* private mode: keep going without memory */ } }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+  function deviceId() {
+    var d = load(STORE.device, null);
+    if (!d) { d = 'device-' + Math.random().toString(36).slice(2, 8); save(STORE.device, d); }
+    return d;
+  }
+  function now() { return new Date(Date.now() + state.clockOffset); }
+  function dayKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function prettyDate(d) {
+    var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return days[d.getDay()] + ' ' + months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  }
+  function showBanner(text) { el('bannerText').textContent = text; el('banner').hidden = false; }
+  function hideBanner() { el('banner').hidden = true; }
+
+  /* ---------- connection status ---------- */
+  function setNet(ok, detail) {
+    var s = el('netStatus');
+    var waiting = state.queue.length;
+    s.innerHTML = '';
+    var mark = document.createElement('span');
+    mark.className = ok && !waiting ? 'dot' : 'square';
+    mark.setAttribute('aria-hidden', 'true');
+    var text = document.createElement('span');
+    if (!ok) text.textContent = 'Cannot reach the sheet. Keeping ' + waiting + ' on this device';
+    else if (waiting) text.textContent = waiting + ' waiting to send';
+    else text.textContent = 'Connected';
+    s.appendChild(mark);
+    s.appendChild(text);
+    var note = el('queueNote');
+    if (!ok) note.textContent = 'Google Sheets did not answer' + (detail ? ' (' + detail + ')' : '') + '. Your taps are kept on this device and will be sent when it answers again.';
+    else if (waiting) note.textContent = waiting + ' waiting to send.';
+    else note.textContent = 'Everything is saved to the sheet.';
+  }
+
+  /* ---------- the send queue: nothing is lost if the wifi drops ---------- */
+  function persistQueue() { save(STORE.queue, state.queue); }
+  function enqueue(item) { state.queue.push(item); persistQueue(); setNet(true); flush(); }
+  function isPermanent(message) {
+    return /not in the|Reload the page|whole number|Bad date|not been set up|had no id|Unknown mode/.test(message || '');
+  }
+  function flush() {
+    if (state.sending || !state.queue.length) return;
+    var item = state.queue[0];
+    if (item.nextAt && item.nextAt > Date.now()) { setTimeout(flush, item.nextAt - Date.now() + 50); return; }
+    state.sending = true;
+    var finish = function () {
+      state.queue.shift();
+      persistQueue();
+      state.sending = false;
+      setNet(true);
+      flush();
+    };
+    var fail = function (err) {
+      var message = String(err && err.message ? err.message : err);
+      state.sending = false;
+      if (isPermanent(message)) {
+        state.queue.shift();
+        persistQueue();
+        showBanner('One entry was not saved: ' + message);
+        setNet(true);
+        flush();
+        return;
+      }
+      item.tries = (item.tries || 0) + 1;
+      item.nextAt = Date.now() + Math.min(60000, 4000 * Math.pow(2, item.tries - 1));
+      persistQueue();
+      setNet(false, message);
+      setTimeout(flush, item.nextAt - Date.now() + 50);
+    };
+    var run = google.script.run.withSuccessHandler(function (res) { onResult(item, res); finish(); }).withFailureHandler(fail);
+    if (item.kind === 'tap') run.recordTap(item.payload);
+    else if (item.kind === 'undo') run.undoTap(item.payload.tapId);
+    else if (item.kind === 'gate') run.recordGate(item.payload);
+    else finish();
+  }
+  function onResult(item, res) {
+    if (item.kind === 'undo' && res && !res.ok) {
+      state.counts[item.key] = (state.counts[item.key] || 0) + 1;
+      renderCounts();
+      showBanner('Undo did not happen: ' + res.reason);
+    }
+    if (item.kind === 'gate' && res && res.ok && item.payload.campus === state.campus && res.date === state.today) {
+      state.gate = res.blocks || {};
+      renderGate();
+    }
+  }
+
+  /* ---------- campus choice ---------- */
+  function renderCampusScreen() {
+    var grid = el('campusGrid');
+    grid.innerHTML = '';
+    var last = load(STORE.campus, null);
+    CONFIG.campuses.forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn campus-btn' + (c.name === last ? ' last' : '');
+      b.innerHTML = '<span></span>';
+      b.firstChild.textContent = c.name;
+      if (c.name === last) {
+        var small = document.createElement('small');
+        small.textContent = 'last used on this device';
+        b.appendChild(small);
+      }
+      if (CONFIG.error) { b.disabled = true; b.title = 'Fix the problem in the red box first'; }
+      b.addEventListener('click', function () { chooseCampus(c.name); });
+      grid.appendChild(b);
+    });
+  }
+  function chooseCampus(name) {
+    state.campus = name;
+    save(STORE.campus, name);
+    state.counts = {};
+    state.gate = {};
+    hideUndo();
+    el('campusBadge').textContent = name;
+    el('changeCampus').disabled = false;
+    el('changeCampus').title = '';
+    el('campusScreen').hidden = true;
+    el('tapScreen').hidden = false;
+    renderGrid();
+    renderGate();
+    fetchToday();
+    flush();
+  }
+  el('changeCampus').addEventListener('click', function () {
+    el('tapScreen').hidden = true;
+    el('campusScreen').hidden = false;
+    renderCampusScreen();
+  });
+
+  /* ---------- the tap grid ---------- */
+  function campusOf(c) { return CONFIG.campuses.filter(function (x) { return x.name === c; })[0] || { name: c, blocks: [] }; }
+  function buttonsForCampus() {
+    return CONFIG.buttons.filter(function (b) { return !b.campus || b.campus === state.campus; });
+  }
+  function renderGrid() {
+    var grid = el('grid');
+    grid.innerHTML = '';
+    buttonsForCampus().forEach(function (b) {
+      var row = document.createElement('div');
+      row.className = 'cat';
+      var head = document.createElement('div');
+      var name = document.createElement('div');
+      name.className = 'cat-name';
+      name.textContent = b.category;
+      var help = document.createElement('div');
+      help.className = 'cat-help';
+      help.textContent = b.help;
+      head.appendChild(name);
+      head.appendChild(help);
+      row.appendChild(head);
+      CONFIG.modes.forEach(function (mode, i) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn tap ' + (i === 0 ? 'btn-green' : 'btn-yellow');
+        btn.setAttribute('data-key', b.category + '|' + mode);
+        btn.setAttribute('aria-label', b.category + ', ' + mode);
+        var label = document.createElement('span');
+        label.textContent = mode;
+        var count = document.createElement('span');
+        count.className = 'count';
+        count.textContent = '0';
+        btn.appendChild(label);
+        btn.appendChild(count);
+        btn.addEventListener('click', function () { tap(b.category, mode); });
+        row.appendChild(btn);
+      });
+      grid.appendChild(row);
+    });
+    renderCounts();
+    el('referral').textContent = CONFIG.referral;
+    el('sheetLink').href = CONFIG.sheetUrl || '#';
+    el('deviceNote').textContent = 'This device: ' + deviceId();
+    el('todayLabel').textContent = prettyDate(now());
+  }
+  function renderCounts() {
+    var buttons = document.querySelectorAll('.tap');
+    for (var i = 0; i < buttons.length; i += 1) {
+      var key = buttons[i].getAttribute('data-key');
+      buttons[i].querySelector('.count').textContent = String(state.counts[key] || 0);
+    }
+  }
+  function flashButton(key) {
+    var btn = document.querySelector('.tap[data-key="' + key.replace(/"/g, '\\"') + '"]');
+    if (!btn) return;
+    btn.classList.add('flash');
+    setTimeout(function () { btn.classList.remove('flash'); }, 220);
+  }
+  function tap(category, mode) {
+    var tapId = uuid();
+    var key = category + '|' + mode;
+    state.counts[key] = (state.counts[key] || 0) + 1;
+    renderCounts();
+    flashButton(key);
+    enqueue({ kind: 'tap', id: tapId, payload: { campus: state.campus, category: category, mode: mode, tapId: tapId, device: deviceId() } });
+    showUndo({ tapId: tapId, key: key, label: category + ', ' + mode, at: Date.now() });
+  }
+
+  /* ---------- undo, two minutes, last tap only ---------- */
+  function showUndo(u) {
+    state.undo = u;
+    el('undoText').textContent = u.label;
+    el('undoBar').hidden = false;
+    if (state.undoTimer) clearInterval(state.undoTimer);
+    var tick = function () {
+      var left = Math.max(0, Math.round((CONFIG.undoWindowMs - (Date.now() - u.at)) / 1000));
+      el('undoSecs').textContent = String(left);
+      if (left <= 0) hideUndo();
+    };
+    tick();
+    state.undoTimer = setInterval(tick, 1000);
+  }
+  function hideUndo() {
+    state.undo = null;
+    el('undoBar').hidden = true;
+    if (state.undoTimer) { clearInterval(state.undoTimer); state.undoTimer = null; }
+  }
+  el('undoClose').addEventListener('click', hideUndo);
+  el('undoBtn').addEventListener('click', function () {
+    var u = state.undo;
+    if (!u) return;
+    hideUndo();
+    state.counts[u.key] = Math.max(0, (state.counts[u.key] || 0) - 1);
+    renderCounts();
+    var idx = -1;
+    state.queue.forEach(function (it, i) { if (it.kind === 'tap' && it.id === u.tapId) idx = i; });
+    if (idx >= 0 && !(state.sending && idx === 0)) {
+      state.queue.splice(idx, 1);
+      persistQueue();
+      setNet(true);
+      return;
+    }
+    enqueue({ kind: 'undo', id: uuid(), key: u.key, payload: { tapId: u.tapId } });
+  });
+
+  /* ---------- gate count ---------- */
+  function blockStartMinutes(label) {
+    var first = String(label).split('-')[0].trim().toLowerCase();
+    if (first.indexOf('noon') === 0) return 12 * 60;
+    if (first.indexOf('midnight') === 0) return 0;
+    var m = first.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+    if (!m) return null;
+    var h = parseInt(m[1], 10);
+    var min = m[2] ? parseInt(m[2], 10) : 0;
+    if (m[3] === 'pm' && h < 12) h += 12;
+    if (m[3] === 'am' && h === 12) h = 0;
+    return h * 60 + min;
+  }
+  function currentBlock(blocks) {
+    var t = now();
+    var mins = t.getHours() * 60 + t.getMinutes();
+    var chosen = blocks[0];
+    blocks.forEach(function (b) {
+      var start = blockStartMinutes(b);
+      if (start !== null && start <= mins) chosen = b;
+    });
+    return chosen;
+  }
+  function renderGate() {
+    var grid = el('gateGrid');
+    grid.innerHTML = '';
+    var blocks = campusOf(state.campus).blocks;
+    var nowBlock = currentBlock(blocks);
+    var total = 0;
+    blocks.forEach(function (b) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn gate-btn' + (b === nowBlock ? ' now' : '');
+      btn.setAttribute('aria-label', 'Gate count for ' + b + (b === nowBlock ? ', the current block' : ''));
+      var k = document.createElement('span');
+      k.className = 'kicker';
+      k.textContent = b + (b === nowBlock ? '  (now)' : '');
+      btn.appendChild(k);
+      var v = document.createElement('span');
+      if (state.gate[b] === undefined || state.gate[b] === null) {
+        v.className = 'empty';
+        v.textContent = 'Not entered yet';
+      } else {
+        v.className = 'count';
+        v.textContent = String(state.gate[b]);
+        total += Number(state.gate[b]) || 0;
+      }
+      btn.appendChild(v);
+      btn.addEventListener('click', function () { openPad(b); });
+      grid.appendChild(btn);
+    });
+    var tot = document.createElement('div');
+    tot.className = 'gate-total';
+    tot.innerHTML = '<span class="kicker">GC Total today</span><span class="count"></span>';
+    tot.querySelector('.count').textContent = String(total);
+    grid.appendChild(tot);
+  }
+  function openPad(block) {
+    state.pad = { block: block, value: '' };
+    el('padTitle').textContent = 'Gate count: ' + block;
+    var already = state.gate[block];
+    el('padSub').textContent = state.campus + ', ' + prettyDate(now()) + (already !== undefined && already !== null ? '. Already saved: ' + already + '. Saving again replaces it.' : '');
+    el('padErr').textContent = '';
+    renderPad();
+    el('keypad').hidden = false;
+    var first = el('padKeys').querySelector('button');
+    if (first) first.focus();
+  }
+  function renderPad() {
+    var v = state.pad ? state.pad.value : '';
+    el('padDisplay').textContent = v === '' ? '0' : v;
+    var saveBtn = el('padSave');
+    saveBtn.disabled = v === '';
+    saveBtn.title = v === '' ? 'Type a number first' : '';
+  }
+  function padPress(k) {
+    if (!state.pad) return;
+    if (k === 'back') state.pad.value = state.pad.value.slice(0, -1);
+    else if (k === 'clear') state.pad.value = '';
+    else if (state.pad.value.length < 6) state.pad.value = (state.pad.value === '0' ? '' : state.pad.value) + k;
+    renderPad();
+  }
+  (function buildKeys() {
+    var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'];
+    var box = el('padKeys');
+    keys.forEach(function (k) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn key' + (k === 'clear' || k === 'back' ? ' word' : '');
+      b.textContent = k === 'clear' ? 'Clear' : (k === 'back' ? 'Back' : k);
+      b.addEventListener('click', function () { padPress(k); });
+      box.appendChild(b);
+    });
+  })();
+  el('padCancel').addEventListener('click', function () { el('keypad').hidden = true; state.pad = null; });
+  el('padSave').addEventListener('click', function () {
+    if (!state.pad || state.pad.value === '') return;
+    var count = parseInt(state.pad.value, 10);
+    if (!(count >= 0)) { el('padErr').textContent = 'Type a whole number, zero or more.'; return; }
+    var block = state.pad.block;
+    state.gate[block] = count;
+    renderGate();
+    el('keypad').hidden = true;
+    state.pad = null;
+    enqueue({ kind: 'gate', id: uuid(), payload: { campus: state.campus, block: block, count: count, date: state.today, device: deviceId() } });
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (el('keypad').hidden) return;
+    if (ev.key >= '0' && ev.key <= '9') { padPress(ev.key); ev.preventDefault(); }
+    else if (ev.key === 'Backspace') { padPress('back'); ev.preventDefault(); }
+    else if (ev.key === 'Escape') { el('padCancel').click(); }
+    else if (ev.key === 'Enter') { el('padSave').click(); }
+  });
+
+  /* ---------- today's counts from the sheet ---------- */
+  function fetchToday() {
+    if (!state.campus || CONFIG.error) return;
+    var campus = state.campus;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (campus !== state.campus) return;
+        if (res && res.date && res.date !== state.today) rollDay(res.date);
+        var pending = {};
+        state.queue.forEach(function (it) {
+          if (it.kind === 'tap' && it.payload.campus === campus) pending[it.payload.category + '|' + it.payload.mode] = (pending[it.payload.category + '|' + it.payload.mode] || 0) + 1;
+          if (it.kind === 'undo' && it.key) pending[it.key] = (pending[it.key] || 0) - 1;
+        });
+        state.counts = res.taps || {};
+        Object.keys(pending).forEach(function (k) { state.counts[k] = (state.counts[k] || 0) + pending[k]; });
+        state.gate = res.gate || {};
+        state.queue.forEach(function (it) { if (it.kind === 'gate' && it.payload.campus === campus && it.payload.date === state.today) state.gate[it.payload.block] = it.payload.count; });
+        renderCounts();
+        renderGate();
+        setNet(true);
+      })
+      .withFailureHandler(function (err) {
+        setNet(false, String(err && err.message ? err.message : err));
+      })
+      .getTodayCounts(campus);
+  }
+  function rollDay(key) {
+    state.today = key;
+    state.counts = {};
+    state.gate = {};
+    hideUndo();
+    el('todayLabel').textContent = prettyDate(now());
+    renderCounts();
+    renderGate();
+  }
+
+  /* ---------- start ---------- */
+  el('bannerClose').addEventListener('click', hideBanner);
+  state.queue = load(STORE.queue, []);
+  if (!Array.isArray(state.queue)) state.queue = [];
+  if (CONFIG.error) {
+    showBanner('Desk Stats cannot start: ' + CONFIG.error);
+    CONFIG.campuses = CONFIG.campuses || [];
+    CONFIG.buttons = CONFIG.buttons || [];
+    CONFIG.modes = CONFIG.modes || ['In person', 'Remote'];
+    CONFIG.undoWindowMs = CONFIG.undoWindowMs || 120000;
+  }
+  state.clockOffset = CONFIG.serverNow ? CONFIG.serverNow - Date.now() : 0;
+  state.today = CONFIG.today || dayKey(now());
+  renderCampusScreen();
+  setNet(true);
+  window.addEventListener('online', flush);
+  setInterval(function () {
+    var key = dayKey(now());
+    if (key !== state.today) { rollDay(key); fetchToday(); }
+    if (state.campus) renderGate();
+  }, 60 * 1000);
+  setInterval(fetchToday, 5 * 60 * 1000);
+  setInterval(flush, 3000);
+})();
+</script>
+</body>
+</html>

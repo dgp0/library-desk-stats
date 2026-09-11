@@ -75,9 +75,17 @@ LimeSurvey export by import/limesurvey_to_history.py, and
 - **Buttons** tab: the list of buttons. Change a name, the helper text, the order, or set Show to no. The page picks it up within a minute.
 - **Campuses** tab: the campus names and each one's gate time blocks.
 
+## How counting works (the part that matters for every total)
+
+- Each green or yellow block reads "down arrow, count, up arrow". Up adds one. Down takes one off.
+- A take-off is not an erase: it is its own row in the Log tab with Count -1, the time, and who did it. Every total anywhere adds up the Count column, so a -1 row lowers the day's number and the record of it stays.
+- The sheet refuses a take-off that would push that day's count for that campus, kind, and mode below zero, whoever taps and from whichever device. On the page the down arrow goes grey at zero.
+- Each arrow ignores a second tap for five seconds (a grey shade sweeps across it). Only that arrow: a different block, or the other arrow on the same block, still works.
+- "Last 10 taps" on the tap page lists the newest taps at that campus with time, who, kind, mode and +1 or -1.
+- Never count rows in this sheet. A row is +1, -1, or a typed-in history day's number. Sum the Count column.
+
 ## Things worth knowing
 
-- Undo takes back the last tap for two minutes, nothing else. After that, remove the row in the Log tab.
 - If the wifi drops, taps wait on the device and send themselves when it is back. The top right corner says how many are waiting.
 - The page stops working the day the Google account that deployed it is deleted. Deploy it from an account the library keeps.
 - For a weekly dated copy of the Log and Gate tabs in a Drive folder called "Desk Stats backups", run the function **installWeeklyBackup** once from the editor.

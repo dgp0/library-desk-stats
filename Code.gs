@@ -4,7 +4,9 @@
  * One standalone Apps Script project. setup() builds the "Desk Stats"
  * workbook (every tab, heading, formula and starter row) and remembers its
  * id. doGet() serves the tap page (Index.html) and the live board
- * (Board.html, add ?view=board to the address). Everything a screen does
+ * (Board.html, ?view=week) and the trends page (Dashboard.html, ?view=trends). Every
+ * total anywhere adds up the Count column: a tap is +1, a subtraction is -1,
+ * a typed-in history day is its number. Nothing counts rows. Everything a screen does
  * goes through the functions below; nothing else writes to the workbook.
  */
 
@@ -23,7 +25,6 @@ const APP = {
     ['Reference & Instruction', 'Reference or library instruction to a single patron. 10 to 20 minutes.'],
   ],
   referral: 'Any interaction requiring in-depth research or more than 20 minutes of time: please refer the patron to a subject specialist or librarian.',
-  undoWindowMs: 2 * 60 * 1000,
 };
 
 const SHEETS = {
@@ -297,7 +298,6 @@ function getConfig() {
     buttons: buttons,
     modes: APP.modes,
     referral: APP.referral,
-    undoWindowMs: APP.undoWindowMs,
     timeZone: APP.timeZone,
     sheetUrl: ss.getUrl(),
     serverNow: Date.now(),
@@ -513,48 +513,67 @@ function recordTap(tap) {
   const category = String(t.category || '').trim();
   const mode = String(t.mode || '').trim();
   const tapId = String(t.tapId || '').trim();
+  const delta = Number(t.delta) === -1 ? -1 : 1;
   const config = getConfig();
-  if (!config.campuses.some(c => c.name === campus)) throw new Error('The campus "' + campus + '" is not in the Campuses tab of the sheet.');
-  if (!config.buttons.some(b => b.category === category)) throw new Error('The button "' + category + '" is not in the Buttons tab of the sheet any more. Reload the page.');
+  if (!config.campuses.some(c => c.name === campus)) throw new Error('The campus "' + campus + '" is not in the Campuses tab. Reload the page.');
+  if (!config.buttons.some(b => b.category === category)) throw new Error('The button "' + category + '" is not in the Buttons tab. Reload the page.');
   if (APP.modes.indexOf(mode) < 0) throw new Error('Unknown mode: ' + mode);
-  if (!tapId) throw new Error('This tap had no id, so it was not saved. Reload the page and try again.');
+  if (!tapId) throw new Error('The tap had no id; reload the page.');
   const ss = getWorkbook_();
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
     const sh = ss.getSheetByName(SHEETS.log.name);
-    if (findRecentRow_(sh, 11, tapId, 400) > 0) return { ok: true, duplicate: true, tapId: tapId };
+    if (findRecentRow_(sh, 11, tapId, 400) > 0) return { ok: true, duplicate: true, tapId: tapId, delta: delta };
     const now = new Date();
-    sh.appendRow([now, dateOnly_(now), now.getHours(), WEEKDAYS[now.getDay()], campus, category, mode, 1, whoAmI_(t.device), 'tap', tapId]);
-    return { ok: true, tapId: tapId, when: now.toISOString() };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/** Takes back one tap, only inside the two-minute window; nothing else in this file deletes. */
-function undoTap(tapId) {
-  const id = String(tapId || '').trim();
-  if (!id) return { ok: false, reason: 'Nothing to undo.' };
-  const ss = getWorkbook_();
-  const lock = LockService.getScriptLock();
-  lock.waitLock(15000);
-  try {
-    const sh = ss.getSheetByName(SHEETS.log.name);
-    const row = findRecentRow_(sh, 11, id, 600);
-    if (!row) return { ok: false, reason: 'That tap is not in the sheet; it may already have been undone.' };
-    const when = sh.getRange(row, 1).getValue();
-    if (!(when instanceof Date) || Date.now() - when.getTime() > APP.undoWindowMs) {
-      return { ok: false, reason: 'The two-minute undo window has passed. Remove the row in the Log tab of the sheet instead.' };
+    if (delta === -1) {
+      const net = todayNet_(sh, todayKey_(now), campus, category, mode);
+      if (net <= 0) return { ok: false, refused: true, tapId: tapId, delta: delta, net: 0, reason: 'Nothing to take off: today\'s count for ' + category + ', ' + mode + ' at ' + campus + ' is already 0 in the sheet.' };
     }
-    sh.deleteRow(row);
-    return { ok: true, tapId: id };
+    sh.appendRow([now, dateOnly_(now), now.getHours(), weekday_(now), campus, category, mode, delta, whoAmI_(t.device), 'tap', tapId]);
+    return { ok: true, tapId: tapId, delta: delta, when: now.toISOString() };
   } finally {
     lock.releaseLock();
   }
 }
 
-/** One gate number for one campus, one day, one time block. Entering it again replaces it. */
+/** Today's net count (adds minus subtractions) for one campus, kind and mode. */
+function todayNet_(sh, today, campus, category, mode) {
+  const last = sh.getLastRow();
+  if (last < 2) return 0;
+  const rows = sh.getRange(2, 2, last - 1, 7).getValues();
+  let net = 0;
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const v = rows[i];
+    if (keyOf_(v[0]) !== today) continue;
+    if (String(v[3]).trim() === campus && String(v[4]).trim() === category && String(v[5]).trim() === mode) net += Number(v[6]) || 0;
+  }
+  return net;
+}
+
+/** The last few taps at one campus, newest first: time, who, kind, mode, +1 or -1. */
+function getRecent(campus, limit) {
+  const ss = getWorkbook_();
+  const sh = ss.getSheetByName(SHEETS.log.name);
+  const want = Math.min(Math.max(Number(limit) || 10, 1), 50);
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const n = Math.min(last - 1, 800);
+  const rows = sh.getRange(last - n + 1, 1, n, 11).getValues();
+  const out = [];
+  for (let i = rows.length - 1; i >= 0 && out.length < want; i -= 1) {
+    const v = rows[i];
+    if (String(v[9]).trim() !== 'tap') continue;
+    if (campus && String(v[4]).trim() !== String(campus).trim()) continue;
+    const when = v[0] instanceof Date ? v[0] : null;
+    out.push({
+      when: when ? Utilities.formatDate(when, APP.timeZone, 'EEE MMM d, h:mm:ss a') : String(v[0]),
+      who: String(v[8] || ''), category: String(v[5]), mode: String(v[6]), delta: Number(v[7]) || 0, tapId: String(v[10] || ''),
+    });
+  }
+  return out;
+}
+
 function recordGate(entry) {
   const g = entry || {};
   const campus = String(g.campus || '').trim();

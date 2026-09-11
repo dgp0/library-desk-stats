@@ -63,6 +63,16 @@
   table.plain th { background: var(--ink); color: #fff; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; }
   table.plain td.l, table.plain th.l { text-align: left; font-family: var(--sans); font-weight: 700; }
   .foot { color: var(--muted); font-size: 12px; margin-top: 16px; }
+  .compare { border: 3px solid var(--ink); box-shadow: var(--shadow); padding: 12px 14px 14px; margin-top: 22px; }
+  .compare h2 { font-family: var(--slab); font-size: 17px; margin: 0 0 2px; }
+  .compare .why { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+  .compare select { font-family: var(--sans); font-weight: 700; font-size: 13px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); padding: 7px 10px; border-radius: 0; }
+  .compare select:focus-visible { outline: 4px solid var(--yellow); outline-offset: 2px; }
+  .compare .pair { display: inline-flex; gap: 8px; align-items: center; margin-right: 18px; }
+  .compare .tag { font-family: var(--mono); font-weight: 700; font-size: 12px; padding: 6px 10px; border: 3px solid var(--ink); }
+  .compare .tag.a { background: var(--green); color: #fff; }
+  .compare .tag.b { background: var(--yellow); }
+  table.plain td.up { color: var(--green); font-weight: 800; } table.plain td.down { color: var(--err); font-weight: 800; }
   @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .chart { height: 260px; } }
   @media print { .controls, .btn { display: none; } .card, .tile { box-shadow: none; break-inside: avoid; } }
 </style>
@@ -99,6 +109,17 @@
   <div class="tiles" id="tiles"></div>
   <div class="callouts" id="callouts"><h2>What stands out</h2><ol id="calloutList"><li>Loading.</li></ol></div>
   <div class="grid" id="cards"></div>
+  <section class="compare" id="compare">
+    <h2>Compare</h2>
+    <p class="why">Pick any campus and period as A and any as B. The last two columns are B minus A and the percent change. "Per recorded day" lets a long period and a short one be compared.</p>
+    <div class="controls">
+      <span class="pair"><span class="tag a">A</span><select id="cmpCampusA" aria-label="Campus A"></select><select id="cmpPeriodA" aria-label="Period A"></select></span>
+      <span class="pair"><span class="tag b">B</span><select id="cmpCampusB" aria-label="Campus B"></select><select id="cmpPeriodB" aria-label="Period B"></select></span>
+    </div>
+    <div id="cmpTable"></div>
+    <div class="legend" id="cmpLegend"></div>
+    <div class="chart" id="cmpChart"></div>
+  </section>
   <div class="foot" id="foot"></div>
 </main>
 
@@ -226,7 +247,7 @@ var CONFIG = <?!= configJson ?>;
   var PAIR = ['#006633', '#d6a800'];
   var BLOCK_COLORS = ['#006633', '#009639', '#d6a800'];
   var CAT_COLORS = ['#006633', '#d6a800', '#212721', '#009639', '#8c8c8c', '#7a5c00', '#c22f1f'];
-  var state = { data: null, campus: 'all', period: { key: 'all', from: null, to: null, label: 'Everything' }, chartsReady: false, busy: false };
+  var state = { data: null, campus: 'all', period: { key: 'all', from: null, to: null, label: 'Everything' }, chartsReady: false, busy: false, cmp: null, cmpOptions: [] };
   function el(id) { return document.getElementById(id); }
   function showBanner(t) { el('banner').textContent = t; el('banner').hidden = false; }
   function hideBanner() { el('banner').hidden = true; }
@@ -272,6 +293,19 @@ var CONFIG = <?!= configJson ?>;
     C.terms(first, last).forEach(function (t) { options.push({ key: t.label, label: t.label, from: t.from, to: t.to }); });
     options.push({ key: 'last90', label: 'Last 90 days', from: C.addDays(today, -89), to: today });
     options.push({ key: 'last30', label: 'Last 30 days', from: C.addDays(today, -29), to: today });
+    state.cmpOptions = options.slice();
+    C.rollup(state.data.daily, C.monthOf).forEach(function (m) {
+      var p = m.key.split('-');
+      var lastDay = new Date(+p[0], +p[1], 0).getDate();
+      state.cmpOptions.push({ key: 'm:' + m.key, label: C.prettyMonth(m.key), from: m.key + '-01', to: m.key + '-' + (lastDay < 10 ? '0' : '') + lastDay });
+    });
+    if (!state.cmp) {
+      var termKeys = options.filter(function (o) { return /^(Spring|Summer|Fall) /.test(o.key); });
+      state.cmp = termKeys.length >= 2
+        ? { campusA: 'all', periodA: termKeys[termKeys.length - 2].key, campusB: 'all', periodB: termKeys[termKeys.length - 1].key }
+        : { campusA: 'all', periodA: 'all', campusB: 'all', periodB: 'all' };
+    }
+    renderCompareControls();
     options.forEach(function (o) {
       var b = document.createElement('button');
       b.type = 'button';
@@ -499,9 +533,103 @@ var CONFIG = <?!= configJson ?>;
     }
 
     jobs.forEach(function (job) { job(); });
+    renderCompare();
     renderCallouts(days, tot, weeks, months, wp, sc);
     var first = days.length ? days[0].d : null, last = days.length ? days[days.length - 1].d : null;
     el('foot').textContent = (first ? 'Showing ' + C.prettyDay(first) + ' to ' + C.prettyDay(last) + '. ' : '') + 'History typed in from the old weekly sheets carries a day but no clock time; taps from the new page carry both.';
+  }
+
+  /* ---------- compare any two campus-and-period pairs ---------- */
+  function fillSelect(sel, items, value, labelOf) {
+    sel.innerHTML = '';
+    items.forEach(function (it) {
+      var o = document.createElement('option');
+      o.value = it.key;
+      o.textContent = labelOf(it);
+      if (it.key === value) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+  function renderCompareControls() {
+    var campusItems = [{ key: 'all', label: 'All campuses' }].concat(state.data.campuses.map(function (c) { return { key: c, label: c }; }));
+    fillSelect(el('cmpCampusA'), campusItems, state.cmp.campusA, function (i) { return i.label; });
+    fillSelect(el('cmpCampusB'), campusItems, state.cmp.campusB, function (i) { return i.label; });
+    fillSelect(el('cmpPeriodA'), state.cmpOptions, state.cmp.periodA, function (i) { return i.label; });
+    fillSelect(el('cmpPeriodB'), state.cmpOptions, state.cmp.periodB, function (i) { return i.label; });
+    ['cmpCampusA', 'cmpCampusB', 'cmpPeriodA', 'cmpPeriodB'].forEach(function (id) {
+      el(id).onchange = function () {
+        state.cmp.campusA = el('cmpCampusA').value; state.cmp.campusB = el('cmpCampusB').value;
+        state.cmp.periodA = el('cmpPeriodA').value; state.cmp.periodB = el('cmpPeriodB').value;
+        renderCompare();
+      };
+    });
+  }
+  function periodByKey(key) { return state.cmpOptions.filter(function (o) { return o.key === key; })[0] || state.cmpOptions[0]; }
+  function sideTotals(campus, periodKey) {
+    var p = periodByKey(periodKey);
+    var t = C.totals(C.filter(state.data.daily, campus, p.from, p.to));
+    t.label = (campus === 'all' ? 'All campuses' : campus) + ', ' + p.label;
+    return t;
+  }
+  function renderCompare() {
+    if (!state.data || !state.cmp) return;
+    var A = sideTotals(state.cmp.campusA, state.cmp.periodA);
+    var B = sideTotals(state.cmp.campusB, state.cmp.periodB);
+    var cats = state.data.categories;
+    var perDay = function (t, v) { return t.days ? v / t.days : null; };
+    var rows = [
+      ['Questions', A.q, B.q, 0], ['In person', A.ip, B.ip, 0], ['Remote', A.rm, B.rm, 0],
+      ['Visitors (gate count)', A.g, B.g, 0],
+      ['Questions per 100 visitors', C.per100(A.q, A.g), C.per100(B.q, B.g), 1],
+      ['Days with a record', A.days, B.days, 0],
+      ['Questions per recorded day', perDay(A, A.q), perDay(B, B.q), 1],
+      ['Visitors per recorded day', perDay(A, A.g), perDay(B, B.g), 0],
+    ];
+    cats.forEach(function (c) { rows.push([c, A.byCat[c] || 0, B.byCat[c] || 0, 0]); });
+    var table = document.createElement('table');
+    table.className = 'plain';
+    table.innerHTML = '<thead><tr><th class="l">Measure</th><th></th><th></th><th>B minus A</th><th>Change</th></tr></thead><tbody></tbody>';
+    var ths = table.querySelectorAll('th');
+    ths[1].textContent = 'A: ' + A.label;
+    ths[2].textContent = 'B: ' + B.label;
+    var tb = table.querySelector('tbody');
+    var show = function (v, dec) { return v === null || v === undefined ? 'n/a' : (dec ? fmt1(v) : fmt(v)); };
+    rows.forEach(function (r) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td class="l"></td><td></td><td></td><td></td><td></td>';
+      tr.children[0].textContent = r[0];
+      tr.children[1].textContent = show(r[1], r[3]);
+      tr.children[2].textContent = show(r[2], r[3]);
+      if (r[1] === null || r[2] === null || r[1] === undefined || r[2] === undefined) { tr.children[3].textContent = 'n/a'; tr.children[4].textContent = 'n/a'; }
+      else {
+        var diff = r[2] - r[1];
+        tr.children[3].textContent = (diff > 0 ? '+' : '') + show(diff, r[3]);
+        var pct = C.pctChange(r[2], r[1]);
+        tr.children[4].textContent = pct === null ? 'n/a' : (pct > 0 ? '+' : '') + Math.round(pct) + '%';
+        if (diff) { tr.children[3].className = diff > 0 ? 'up' : 'down'; tr.children[4].className = diff > 0 ? 'up' : 'down'; }
+      }
+      tb.appendChild(tr);
+    });
+    var box = el('cmpTable');
+    box.innerHTML = '';
+    box.appendChild(table);
+    var leg = el('cmpLegend');
+    leg.innerHTML = '';
+    [['A: ' + A.label, '#006633'], ['B: ' + B.label, '#d6a800']].forEach(function (pair) {
+      var key = document.createElement('span');
+      var sw = document.createElement('i');
+      sw.style.background = pair[1];
+      key.appendChild(sw);
+      key.appendChild(document.createTextNode(pair[0]));
+      leg.appendChild(key);
+    });
+    var chartRows = [['Kind', 'A', 'B']].concat(cats.map(function (c) { return [c, Math.round((perDay(A, A.byCat[c] || 0) || 0) * 100) / 100, Math.round((perDay(B, B.byCat[c] || 0) || 0) * 100) / 100]; }));
+    var div = el('cmpChart');
+    div.className = 'chart';
+    div.innerHTML = '';
+    if (!state.chartsReady) return;
+    if (!A.days && !B.days) { emptyInto(div, 'Nothing recorded in either period.'); return; }
+    draw('ColumnChart', div, chartRows, baseOptions({ colors: PAIR, vAxis: vAxis({ title: 'questions per recorded day', titleTextStyle: { color: '#494949', italic: false, fontSize: 11 }, format: 'decimal' }) }));
   }
 
   /* ---------- plain-sentence findings ---------- */

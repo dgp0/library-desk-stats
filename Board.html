@@ -70,6 +70,21 @@
   </div>
 </header>
 <div id="banner" class="banner" hidden role="alert"></div>
+<script>
+  /* If anything below breaks, say so in the red box instead of showing a blank page. */
+  window.addEventListener('error', function (ev) {
+    var box = document.getElementById('banner');
+    if (!box) return;
+    var msg = 'The board hit a problem and stopped: ' + (ev.message || 'unknown error') + (ev.lineno ? ' (line ' + ev.lineno + ')' : '') + '.';
+    var scripts = document.querySelectorAll('script');
+    var main = scripts[scripts.length - 1];
+    if (main && main.textContent.indexOf('<' + '?!=') >= 0) {
+      msg += ' Google did not fill in the settings line, which means this page was not served by the doGet function in Code.gs.';
+    }
+    box.textContent = msg;
+    box.hidden = false;
+  });
+</script>
 <main class="wrap">
   <div class="controls" id="campusPicker" style="margin-bottom:16px"></div>
   <div class="tiles" id="tiles"></div>

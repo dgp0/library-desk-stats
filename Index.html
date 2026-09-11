@@ -116,6 +116,22 @@
 </header>
 
 <div id="banner" class="banner" hidden role="alert"><span id="bannerText"></span><button id="bannerClose" class="btn" type="button">Close</button></div>
+<script>
+  /* If anything below breaks, say so in the red box instead of showing a blank page. */
+  window.addEventListener('error', function (ev) {
+    var box = document.getElementById('banner');
+    var text = document.getElementById('bannerText');
+    if (!box || !text) return;
+    var msg = 'The page hit a problem and stopped: ' + (ev.message || 'unknown error') + (ev.lineno ? ' (line ' + ev.lineno + ')' : '') + '.';
+    var scripts = document.querySelectorAll('script');
+    var main = scripts[scripts.length - 1];
+    if (main && main.textContent.indexOf('<' + '?!=') >= 0) {
+      msg += ' Google did not fill in the settings line, which means this page was not served by the doGet function in Code.gs. Check that Code.gs holds the Desk Stats code and was saved, then deploy again or use the test address.';
+    }
+    text.textContent = msg;
+    box.hidden = false;
+  });
+</script>
 
 <main class="wrap">
   <section id="campusScreen">
@@ -577,6 +593,9 @@ var CONFIG = <?!= configJson ?>;
   }
   state.clockOffset = CONFIG.serverNow ? CONFIG.serverNow - Date.now() : 0;
   state.today = CONFIG.today || dayKey(now());
+  if (!CONFIG.error && !(CONFIG.campuses && CONFIG.campuses.length)) {
+    showBanner('No campuses were found, so there is nothing to tap. In the script editor open Code.gs, pick setup in the function list, and click Run. Then reload this page.');
+  }
   renderCampusScreen();
   setNet(true);
   window.addEventListener('online', flush);

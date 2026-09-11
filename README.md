@@ -26,10 +26,23 @@ the college's Google accounts.
 4. On the left, next to **Files**, click **+** then **HTML**. Type **Index** and press Enter. Select everything in the new file, delete it, paste the whole contents of **Index.html**. Ctrl+S.
 5. Do the same for **Board**: **+**, **HTML**, name it **Board**, paste **Board.html**. Ctrl+S.
 6. Click the gear icon on the left (**Project Settings**). Tick **Show "appsscript.json" manifest file in editor**. Click **< >** (Editor) on the left again. Open **appsscript.json**, replace its contents with this folder's **appsscript.json**. Ctrl+S.
-7. At the top of the editor there is a dropdown that says **doGet** or **setup**. Pick **setup**, then click **Run**. The first time, Google asks you to approve the script: click **Review permissions**, pick your account, click **Advanced**, then **Go to Desk Stats (unsafe)**, then **Allow**. It says unsafe only because the script is yours and not published in Google's store.
+7. Click **Code.gs** in the Files list so it is the open file (the function list only shows the functions of the file that is open). At the top of the editor there is a dropdown next to **Run** and **Debug**; it now lists **setup**, **doGet** and the rest. Pick **setup**, then click **Run**. The first time, Google asks you to approve the script: click **Review permissions**, pick your account, click **Advanced**, then **Go to Desk Stats (unsafe)**, then **Allow**. It says unsafe only because the script is yours and not published in Google's store.
 8. When it finishes, the **Execution log** at the bottom shows the address of the new spreadsheet, named **Desk Stats**. It is in your Google Drive.
 9. Click **Deploy** (top right) then **New deployment**. Click the gear next to **Select type** and choose **Web app**. Description: Desk Stats. **Execute as: Me**. **Who has access: Anyone with Google account** (for the college install pick "Anyone within" the college instead). Click **Deploy**. Copy the **Web app URL**.
 10. Open that address on the iPad. Tap **Share** then **Add to Home Screen**. The icon opens on the campus choice screen.
+
+## While the code is still changing: use the test address
+
+A deployment is a snapshot. After you paste new code, the address ending in
+**/exec** keeps showing the old snapshot until you publish again. Two ways
+round that:
+
+- **Test address (no publishing needed):** Deploy > **Test deployments**.
+  Copy the address ending in **/dev**. It always runs the code you last
+  saved (Ctrl+S). Use this while we are fixing things. Only you can open it.
+- **Publish the new code to the real address:** Deploy > **Manage
+  deployments** > the pencil icon > under **Version** choose **New
+  version** > **Deploy**. The /exec address now serves the new code.
 
 ## Where the numbers go
 

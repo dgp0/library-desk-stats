@@ -111,8 +111,8 @@
   <div class="where">
     <span id="campusBadge" class="campus-badge">No campus chosen</span>
     <button id="changeCampus" class="btn" type="button" disabled title="Choose a campus first">Change campus</button>
-    <a class="btn" href="?view=board" target="_blank" rel="noopener" style="text-decoration:none">Board</a>
-    <a class="btn btn-yellow" href="?view=dashboard" target="_blank" rel="noopener" style="text-decoration:none">Dashboard</a>
+    <a class="btn" id="boardTop" href="?view=board" target="_blank" rel="noopener" style="text-decoration:none">Board</a>
+    <a class="btn btn-yellow" id="dashTop" href="?view=dashboard" target="_blank" rel="noopener" style="text-decoration:none">Dashboard</a>
     <span id="netStatus" class="status"><span class="dot" aria-hidden="true"></span><span id="netText">Connected</span></span>
   </div>
 </header>
@@ -596,6 +596,12 @@ var CONFIG = <?!= configJson ?>;
   }
   state.clockOffset = CONFIG.serverNow ? CONFIG.serverNow - Date.now() : 0;
   state.today = CONFIG.today || dayKey(now());
+  if (CONFIG.webAppUrl) {
+    el('boardTop').href = CONFIG.webAppUrl + '?view=board';
+    el('boardLink').href = CONFIG.webAppUrl + '?view=board';
+    el('dashTop').href = CONFIG.webAppUrl + '?view=dashboard';
+    el('dashLink').href = CONFIG.webAppUrl + '?view=dashboard';
+  }
   if (!CONFIG.error && !(CONFIG.campuses && CONFIG.campuses.length)) {
     showBanner('No campuses were found, so there is nothing to tap. In the script editor open Code.gs, pick setup in the function list, and click Run. Then reload this page.');
   }

@@ -65,7 +65,7 @@
     <div class="kicker">Motlow State Community College Libraries</div>
   </div>
   <div class="controls" id="controls">
-    <a class="btn" href="?view=dashboard" style="text-decoration:none">Dashboard</a>
+    <a class="btn" id="dashBtn" href="?view=dashboard" style="text-decoration:none">Dashboard</a>
     <button class="btn" type="button" id="refreshBtn">Refresh now</button>
     <span class="kicker" id="updated">Loading</span>
   </div>
@@ -225,6 +225,7 @@ var CONFIG = <?!= configJson ?>;
     el('refreshBtn').disabled = true;
     el('refreshBtn').title = 'Fix the problem in the red box first';
   }
+  if (CONFIG.webAppUrl) el('dashBtn').href = CONFIG.webAppUrl + '?view=dashboard';
   renderPicker();
   el('refreshBtn').addEventListener('click', refresh);
   refresh();

@@ -283,6 +283,7 @@ function getConfig() {
     const parsed = JSON.parse(hit);
     parsed.serverNow = Date.now();
     parsed.today = todayKey_(new Date());
+    parsed.webAppUrl = webAppUrl_();
     return parsed;
   }
   const ss = getWorkbook_();
@@ -303,7 +304,14 @@ function getConfig() {
     today: todayKey_(new Date()),
   };
   cache.put('config', JSON.stringify(config), 60);
+  config.webAppUrl = webAppUrl_();
   return config;
+}
+
+/** The page's own full address. Links inside the page must carry it, because Google
+ *  shows the page inside a frame whose hidden address is not the one in the browser bar. */
+function webAppUrl_() {
+  try { return ScriptApp.getService().getUrl() || ''; } catch (err) { return ''; }
 }
 
 /** Today's tallies for one campus, so a fresh device shows the right counts. */

@@ -44,6 +44,28 @@ round that:
   deployments** > the pencil icon > under **Version** choose **New
   version** > **Deploy**. The /exec address now serves the new code.
 
+## The dashboard
+
+Same address as the tap page with **?view=dashboard** on the end. It reads
+the whole sheet once, then every filter (campus, term, last 90 days) works
+instantly. It shows questions per week, visitors per week, questions by
+month and category, campus comparison, the weekday pattern, visitors
+against questions day by day (with how strongly they move together), the
+hour-of-day pattern (from real taps only), category mix per campus, the
+remote share by month, and gate counts by time block, plus a "what stands
+out" list written in plain sentences.
+
+## Loading the old LimeSurvey weeks (one time)
+
+The folder holds **history-log.csv** and **history-gate.csv**, made from the
+LimeSurvey export by import/limesurvey_to_history.py, and
+**history-report.txt** listing every row it dropped or changed.
+
+1. Open drive.google.com and drag **history-log.csv** and **history-gate.csv** into it (anywhere; the script finds them by name).
+2. In the script editor click **Code.gs**, pick **importHistory** in the function dropdown, click **Run**. Approve the Drive permission if asked.
+3. The **Execution log** says how many rows went into Log and Gate. Running it again adds nothing twice.
+4. Open the dashboard and the campus weekly tabs: the old weeks are there, marked "LimeSurvey" in the Source column.
+
 ## Where the numbers go
 
 - **Log** tab: one row per tap with the exact time, campus, category, In person or Remote.

@@ -236,7 +236,7 @@ function buildSummarySheet_(ss) {
 
 function doGet(e) {
   const view = (e && e.parameter && e.parameter.view) || 'tap';
-  const file = view === 'board' ? 'Board' : 'Index';
+  const file = view === 'board' ? 'Board' : (view === 'dashboard' ? 'Dashboard' : 'Index');
   const t = HtmlService.createTemplateFromFile(file);
   let config;
   try {
@@ -381,8 +381,108 @@ function logRows_(ss) {
   const last = sh.getLastRow();
   if (last < 2) return [];
   return sh.getRange(2, 2, last - 1, 7).getValues().map(v => ({
-    date: keyOf_(v[0]), campus: String(v[3]).trim(), category: String(v[4]).trim(), mode: String(v[5]).trim(), count: Number(v[6]) || 0,
+    date: keyOf_(v[0]),
+    hour: (v[1] === '' || v[1] === null) ? null : Number(v[1]),
+    campus: String(v[3]).trim(), category: String(v[4]).trim(), mode: String(v[5]).trim(), count: Number(v[6]) || 0,
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/* The dashboard: one call returns every day's totals; the page does   */
+/* the rest, so filters change instantly without another round trip.  */
+/* ------------------------------------------------------------------ */
+
+function getDashboard() {
+  const ss = getWorkbook_();
+  const config = getConfig();
+  const grouped = groupDaily_(logRows_(ss), gateRows_(ss));
+  const seen = {};
+  grouped.daily.forEach(d => {
+    Object.keys(d.ip).forEach(c => { seen[c] = true; });
+    Object.keys(d.rm).forEach(c => { seen[c] = true; });
+  });
+  const categories = config.buttons.map(b => b.category);
+  Object.keys(seen).forEach(c => { if (categories.indexOf(c) < 0) categories.push(c); });
+  const blocks = [];
+  config.campuses.forEach(c => c.blocks.forEach(b => { if (blocks.indexOf(b) < 0) blocks.push(b); }));
+  return {
+    daily: grouped.daily,
+    hours: grouped.hours,
+    campuses: config.campuses.map(c => c.name),
+    categories: categories,
+    blocks: blocks,
+    today: todayKey_(new Date()),
+    serverNow: Date.now(),
+  };
+}
+
+/** Pure: folds row lists into one record per campus per day. Tested outside Google too. */
+function groupDaily_(logs, gates) {
+  const days = {};
+  const hours = {};
+  const dayOf = (date, campus) => {
+    const k = date + '|' + campus;
+    if (!days[k]) days[k] = { d: date, c: campus, ip: {}, rm: {}, g: {} };
+    return days[k];
+  };
+  logs.forEach(row => {
+    if (!row.date || !row.campus || !row.category) return;
+    const d = dayOf(row.date, row.campus);
+    const bucket = row.mode === 'Remote' ? d.rm : d.ip;
+    bucket[row.category] = (bucket[row.category] || 0) + row.count;
+    if (row.hour !== null && row.hour !== undefined && row.hour >= 0 && row.hour < 24) {
+      if (!hours[row.campus]) hours[row.campus] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+      hours[row.campus][Math.floor(row.hour)] += row.count;
+    }
+  });
+  gates.forEach(row => {
+    if (!row.date || !row.campus || !row.block) return;
+    const d = dayOf(row.date, row.campus);
+    d.g[row.block] = (d.g[row.block] || 0) + row.count;
+  });
+  const daily = Object.keys(days).sort().map(k => days[k]);
+  return { daily: daily, hours: hours };
+}
+
+/* ------------------------------------------------------------------ */
+/* One-off: pull the typed-in history (the LimeSurvey years) into the  */
+/* sheet. Upload history-log.csv and history-gate.csv to Google Drive, */
+/* then run this once. Running it again adds nothing twice.            */
+/* ------------------------------------------------------------------ */
+
+function importHistory() {
+  const ss = getWorkbook_();
+  const lines = [
+    importHistoryFile_(ss, 'history-log.csv', SHEETS.log, 10, r => ['', dateFromKey_(r[1]), '', r[3], r[4], r[5], r[6], Number(r[7]) || 0, '', r[9], '']),
+    importHistoryFile_(ss, 'history-gate.csv', SHEETS.gate, 5, r => [dateFromKey_(r[0]), r[1], r[2], Number(r[3]) || 0, '', r[5], '']),
+  ];
+  CacheService.getScriptCache().remove('config');
+  Logger.log(lines.join('\n'));
+  return lines.join('\n');
+}
+
+function importHistoryFile_(ss, fileName, spec, sourceColumn, shape) {
+  const files = DriveApp.getFilesByName(fileName);
+  if (!files.hasNext()) return fileName + ': not found in your Google Drive. Drag it into drive.google.com, then run importHistory again.';
+  const rows = Utilities.parseCsv(files.next().getBlob().getDataAsString('UTF-8'));
+  const header = rows.shift() || [];
+  if (header.join('|') !== spec.headers.join('|')) return fileName + ': its first line does not match the ' + spec.name + ' tab headings, so nothing was imported from it.';
+  const sh = ss.getSheetByName(spec.name);
+  const already = {};
+  const last = sh.getLastRow();
+  if (last >= 2) sh.getRange(2, sourceColumn, last - 1, 1).getValues().forEach(v => { already[String(v[0])] = true; });
+  const out = [];
+  const skipped = {};
+  rows.forEach(r => {
+    if (!r.length || !r.join('').trim()) return;
+    const source = String(r[sourceColumn - 1]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(r[spec === SHEETS.log ? 1 : 0]))) return;
+    if (already[source]) { skipped[source] = true; return; }
+    out.push(shape(r));
+  });
+  if (out.length) sh.getRange(sh.getLastRow() + 1, 1, out.length, spec.headers.length).setValues(out);
+  const skippedCount = Object.keys(skipped).length;
+  return fileName + ': ' + out.length + ' rows added to the ' + spec.name + ' tab' + (skippedCount ? '; ' + skippedCount + ' weeks skipped because they were already there' : '') + '.';
 }
 
 function gateRows_(ss) {

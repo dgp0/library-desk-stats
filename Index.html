@@ -242,28 +242,35 @@ var CONFIG = <?!= configJson ?>;
   function hideBanner() { el('banner').hidden = true; }
 
   /* ---------- connection status ---------- */
+  var STUCK_AFTER_MS = 4000;
+  function stuckCount() {
+    var t = Date.now();
+    return state.queue.filter(function (it) { return (it.tries || 0) > 0 || (t - (it.at || t)) > STUCK_AFTER_MS; }).length;
+  }
   function setNet(ok, detail) {
     var s = el('netStatus');
-    var waiting = state.queue.length;
+    var total = state.queue.length;
+    var stuck = stuckCount();
     s.innerHTML = '';
     var mark = document.createElement('span');
-    mark.className = ok && !waiting ? 'dot' : 'square';
+    mark.className = ok && !stuck ? 'dot' : 'square';
     mark.setAttribute('aria-hidden', 'true');
     var text = document.createElement('span');
-    if (!ok) text.textContent = 'Cannot reach the sheet. Keeping ' + waiting + ' on this device';
-    else if (waiting) text.textContent = waiting + ' waiting to send';
+    if (!ok) text.textContent = 'Cannot reach the sheet. Keeping ' + total + ' on this device';
+    else if (stuck) text.textContent = stuck + ' waiting to send';
+    else if (total) text.textContent = 'Saving';
     else text.textContent = 'Connected';
     s.appendChild(mark);
     s.appendChild(text);
     var note = el('queueNote');
     if (!ok) note.textContent = 'Google Sheets did not answer' + (detail ? ' (' + detail + ')' : '') + '. Your taps are kept on this device and will be sent when it answers again.';
-    else if (waiting) note.textContent = waiting + ' waiting to send.';
+    else if (stuck) note.textContent = stuck + ' waiting to send; the page keeps trying by itself.';
     else note.textContent = 'Everything is saved to the sheet.';
   }
 
   /* ---------- the send queue: nothing is lost if the wifi drops ---------- */
   function persistQueue() { save(STORE.queue, state.queue); }
-  function enqueue(item) { state.queue.push(item); persistQueue(); setNet(true); flush(); }
+  function enqueue(item) { item.at = Date.now(); state.queue.push(item); persistQueue(); setNet(true); flush(); }
   function isPermanent(message) {
     return /not in the|Reload the page|whole number|Bad date|not been set up|had no id|Unknown mode/.test(message || '');
   }
@@ -685,7 +692,7 @@ var CONFIG = <?!= configJson ?>;
     if (state.campus) renderGate();
   }, 60 * 1000);
   setInterval(fetchToday, 5 * 60 * 1000);
-  setInterval(flush, 3000);
+  setInterval(function () { flush(); if (state.queue.length) setNet(!stuckCount()); }, 3000);
 })();
 </script>
 </body>

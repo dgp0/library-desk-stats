@@ -15,7 +15,7 @@ the college's Google accounts.
 |---|---|
 | Code.gs | the brain: builds the sheet, serves the pages, saves every tap |
 | Index.html | the tap page staff use on the iPad or phone |
-| Board.html | the live board for the director (same address, add ?view=board) |
+| Board.html | the "This week" page: the paper weekly grid, live (same address, add ?view=week) |
 | appsscript.json | two settings: the time zone and how the page is shared |
 
 ## Putting it into Google (about five minutes)
@@ -44,9 +44,9 @@ round that:
   deployments** > the pencil icon > under **Version** choose **New
   version** > **Deploy**. The /exec address now serves the new code.
 
-## The dashboard
+## The Trends page
 
-Same address as the tap page with **?view=dashboard** on the end. It reads
+Same address as the tap page with **?view=trends** on the end (the Trends button on the tap page opens it). It reads
 the whole sheet once, then every filter (campus, term, last 90 days) works
 instantly. It shows questions per week, visitors per week, questions by
 month and category, campus comparison, the weekday pattern, visitors

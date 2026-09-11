@@ -236,7 +236,7 @@ function buildSummarySheet_(ss) {
 
 function doGet(e) {
   const view = (e && e.parameter && e.parameter.view) || 'tap';
-  const file = view === 'board' ? 'Board' : (view === 'dashboard' ? 'Dashboard' : 'Index');
+  const file = (view === 'board' || view === 'week') ? 'Board' : ((view === 'dashboard' || view === 'trends') ? 'Dashboard' : 'Index');
   const t = HtmlService.createTemplateFromFile(file);
   let config;
   try {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <base target="_top">
-<title>Desk Stats board</title>
+<title>Desk Stats: this week</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;700;800&family=Roboto+Slab:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
@@ -61,11 +61,12 @@
 <body>
 <header class="masthead">
   <div>
-    <h1 class="wordmark">Desk Stats board</h1>
+    <h1 class="wordmark">This week</h1>
     <div class="kicker">Motlow State Community College Libraries</div>
   </div>
   <div class="controls" id="controls">
-    <a class="btn" id="dashBtn" href="?view=dashboard" style="text-decoration:none">Dashboard</a>
+    <a class="btn" id="tapBtn" href="" style="text-decoration:none">Tap page</a>
+    <a class="btn" id="dashBtn" href="?view=trends" style="text-decoration:none">Trends</a>
     <button class="btn" type="button" id="refreshBtn">Refresh now</button>
     <span class="kicker" id="updated">Loading</span>
   </div>
@@ -76,7 +77,7 @@
   window.addEventListener('error', function (ev) {
     var box = document.getElementById('banner');
     if (!box) return;
-    var msg = 'The board hit a problem and stopped: ' + (ev.message || 'unknown error') + (ev.lineno ? ' (line ' + ev.lineno + ')' : '') + '.';
+    var msg = 'The This week page hit a problem and stopped: ' + (ev.message || 'unknown error') + (ev.lineno ? ' (line ' + ev.lineno + ')' : '') + '.';
     var scripts = document.querySelectorAll('script');
     var main = scripts[scripts.length - 1];
     if (main && main.textContent.indexOf('<' + '?!=') >= 0) {
@@ -215,17 +216,17 @@ var CONFIG = <?!= configJson ?>;
         el('refreshBtn').disabled = false;
         el('refreshBtn').title = '';
         el('updated').textContent = 'Could not refresh';
-        showBanner('The board could not read the sheet: ' + String(err && err.message ? err.message : err) + '. It will try again in a minute.');
+        showBanner('The This week page could not read the sheet: ' + String(err && err.message ? err.message : err) + '. It will try again in a minute.');
       })
       .getBoard(state.campus === 'all' ? 'all' : state.campus);
   }
 
   if (CONFIG.error) {
-    showBanner('The board cannot start: ' + CONFIG.error);
+    showBanner('The This week page cannot start: ' + CONFIG.error);
     el('refreshBtn').disabled = true;
     el('refreshBtn').title = 'Fix the problem in the red box first';
   }
-  if (CONFIG.webAppUrl) el('dashBtn').href = CONFIG.webAppUrl + '?view=dashboard';
+  if (CONFIG.webAppUrl) { el('dashBtn').href = CONFIG.webAppUrl + '?view=trends'; el('tapBtn').href = CONFIG.webAppUrl; }
   renderPicker();
   el('refreshBtn').addEventListener('click', refresh);
   refresh();

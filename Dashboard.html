@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <base target="_top">
-<title>Desk Stats dashboard</title>
+<title>Desk Stats: trends</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;700;800&family=Roboto+Slab:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
@@ -68,10 +68,12 @@
 <body>
 <header class="masthead">
   <div>
-    <h1 class="wordmark">Desk Stats dashboard</h1>
+    <h1 class="wordmark">Trends</h1>
     <div class="kicker">Motlow State Community College Libraries</div>
   </div>
   <div class="controls">
+    <a class="btn" id="tapBtn" href="" style="text-decoration:none">Tap page</a>
+    <a class="btn" id="weekBtn" href="?view=week" style="text-decoration:none">This week</a>
     <button class="btn" type="button" id="refreshBtn">Refresh</button>
     <span class="kicker" id="updated">Loading the sheet</span>
   </div>
@@ -81,7 +83,7 @@
   window.addEventListener('error', function (ev) {
     var box = document.getElementById('banner');
     if (!box) return;
-    var msg = 'The dashboard hit a problem and stopped: ' + (ev.message || 'unknown error') + (ev.lineno ? ' (line ' + ev.lineno + ')' : '') + '.';
+    var msg = 'The trends page hit a problem and stopped: ' + (ev.message || 'unknown error') + (ev.lineno ? ' (line ' + ev.lineno + ')' : '') + '.';
     var scripts = document.querySelectorAll('script');
     var main = scripts[scripts.length - 1];
     if (main && main.textContent.indexOf('<' + '?!=') >= 0) msg += ' Google did not fill in the settings line, which means this page was not served by the doGet function in Code.gs.';
@@ -522,14 +524,15 @@ var CONFIG = <?!= configJson ?>;
         state.busy = false;
         el('refreshBtn').disabled = false;
         el('updated').textContent = 'Could not read the sheet';
-        showBanner('The dashboard could not read the sheet: ' + String(err && err.message ? err.message : err));
+        showBanner('The trends page could not read the sheet: ' + String(err && err.message ? err.message : err));
       })
       .getDashboard();
   }
   if (CONFIG.error) {
-    showBanner('The dashboard cannot start: ' + CONFIG.error);
+    showBanner('The trends page cannot start: ' + CONFIG.error);
     el('refreshBtn').disabled = true;
   }
+  if (CONFIG.webAppUrl) { el('weekBtn').href = CONFIG.webAppUrl + '?view=week'; el('tapBtn').href = CONFIG.webAppUrl; }
   el('refreshBtn').addEventListener('click', load);
   window.addEventListener('resize', function () { clearTimeout(window.__rsz); window.__rsz = setTimeout(render, 200); });
   if (window.google && google.charts) {

@@ -46,6 +46,7 @@
   .status { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; }
   .dot { width: 10px; height: 10px; background: var(--green); border-radius: 50%; display: inline-block; flex: none; }
   .square { width: 10px; height: 10px; border: 3px solid var(--ink); display: inline-block; flex: none; }
+  .square.bad { border-color: var(--err); background: var(--err-wash); }
 
   .ask { font-family: var(--slab); font-size: 22px; margin: 8px 0 14px; }
   .campus-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
@@ -214,14 +215,20 @@ var CONFIG = <?!= configJson ?>;
 (function () {
   'use strict';
 
-  var PAGE_BUILD = 'DS-2026-09-11-08';
-  var STORE = { campus: 'deskstats.campus', device: 'deskstats.device', queue: 'deskstats.queue.v2' };
+  var PAGE_BUILD = 'DS-2026-09-11-09';
   var COOLDOWN_MS = 5000;
-  var state = { campus: null, counts: {}, gate: {}, queue: [], sending: false, cooldowns: {}, pad: null, today: null, clockOffset: 0 };
+  var BATCH_MAX = 25;
+  var TAB_ID = 'tab-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  var STORE = { campus: 'deskstats.campus', device: 'deskstats.device', queuePrefix: 'deskstats.queue.v3.', tabPrefix: 'deskstats.tab.' };
+  var state = {
+    campus: null, counts: {}, gate: {}, queue: [], sending: false, cooldowns: {}, pad: null, today: null, clockOffset: 0,
+    net: { failing: false, lastError: '', lastSavedAt: 0, shownError: '' }, flushTimer: null,
+  };
 
   function el(id) { return document.getElementById(id); }
   function load(key, fallback) { try { var v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } }
   function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* private mode: keep going without memory */ } }
+  function forget(key) { try { localStorage.removeItem(key); } catch (e) { /* nothing to do */ } }
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function uuid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -234,6 +241,7 @@ var CONFIG = <?!= configJson ?>;
   }
   function now() { return new Date(Date.now() + state.clockOffset); }
   function dayKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function clock(ms) { var d = new Date(ms); return (d.getHours() % 12 || 12) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()) + (d.getHours() < 12 ? ' am' : ' pm'); }
   function prettyDate(d) {
     var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -241,33 +249,6 @@ var CONFIG = <?!= configJson ?>;
   }
   function showBanner(text) { el('bannerText').textContent = text; el('banner').hidden = false; }
   function hideBanner() { el('banner').hidden = true; }
-
-  /* ---------- connection status ---------- */
-  var STUCK_AFTER_MS = 4000;
-  function stuckCount() {
-    var t = Date.now();
-    return state.queue.filter(function (it) { return (it.tries || 0) > 0 || (t - (it.at || t)) > STUCK_AFTER_MS; }).length;
-  }
-  function setNet(ok, detail) {
-    var s = el('netStatus');
-    var total = state.queue.length;
-    var stuck = stuckCount();
-    s.innerHTML = '';
-    var mark = document.createElement('span');
-    mark.className = ok && !stuck ? 'dot' : 'square';
-    mark.setAttribute('aria-hidden', 'true');
-    var text = document.createElement('span');
-    if (!ok) text.textContent = 'Cannot reach the sheet. Keeping ' + total + ' on this device';
-    else if (stuck) text.textContent = stuck + ' waiting to send';
-    else if (total) text.textContent = 'Saving';
-    else text.textContent = 'Connected';
-    s.appendChild(mark);
-    s.appendChild(text);
-    var note = el('queueNote');
-    if (!ok) note.textContent = 'Google Sheets did not answer' + (detail ? ' (' + detail + ')' : '') + '. Your taps are kept on this device and will be sent when it answers again.';
-    else if (stuck) note.textContent = stuck + ' waiting to send; the page keeps trying by itself.';
-    else note.textContent = 'Everything is saved to the sheet.';
-  }
 
   /* The script behind this page must have every function the page calls; if not, say which and why. */
   function server(name) {
@@ -277,60 +258,129 @@ var CONFIG = <?!= configJson ?>;
     return google.script.run;
   }
 
-  /* ---------- the send queue: nothing is lost if the wifi drops ---------- */
-  function persistQueue() { save(STORE.queue, state.queue); }
-  function enqueue(item) { item.at = Date.now(); state.queue.push(item); persistQueue(); setNet(true); flush(); }
-  function isPermanent(message) {
-    return /not in the|Reload the page|whole number|Bad date|not been set up|had no id|Unknown mode/.test(message || '');
+  /* ---------- what the corner says ---------- */
+  function setNet() {
+    var s = el('netStatus');
+    var n = state.queue.length;
+    s.innerHTML = '';
+    var mark = document.createElement('span');
+    mark.className = state.net.failing ? 'square bad' : (n ? 'square' : 'dot');
+    mark.setAttribute('aria-hidden', 'true');
+    var text = document.createElement('span');
+    if (state.net.failing) text.textContent = 'Cannot reach the sheet. Keeping ' + n + ' on this device';
+    else if (n) text.textContent = 'Saving ' + n;
+    else text.textContent = 'Connected';
+    s.appendChild(mark);
+    s.appendChild(text);
+    var note = el('queueNote');
+    if (state.net.failing) note.textContent = 'The last save failed: ' + state.net.lastError + ' The page keeps the taps on this device and tries again by itself.';
+    else if (n) note.textContent = 'Saving ' + n + ' to the sheet.';
+    else note.textContent = 'Everything is saved to the sheet.' + (state.net.lastSavedAt ? ' Last save ' + clock(state.net.lastSavedAt) + '.' : '');
+  }
+  function noteFailure(message) {
+    state.net.failing = true;
+    state.net.lastError = message;
+    setNet();
+    if (message !== state.net.shownError) {
+      state.net.shownError = message;
+      showBanner('Google Sheets answered with an error: ' + message + ' The taps are kept on this device and sent again by themselves.');
+    }
+  }
+
+  /* ---------- the queue: this tab's own, kept on the device, sent in bursts ---------- */
+  function queueKey() { return STORE.queuePrefix + TAB_ID; }
+  function persistQueue() { save(queueKey(), state.queue); }
+  function heartbeat(alive) { save(STORE.tabPrefix + TAB_ID, alive === false ? 0 : Date.now()); }
+  /* A tab that closed with taps still waiting leaves them behind; any live tab picks them up. */
+  function adoptOrphans() {
+    var keys = [];
+    try { for (var i = 0; i < localStorage.length; i += 1) keys.push(localStorage.key(i)); } catch (e) { return; }
+    var mine = {};
+    state.queue.forEach(function (it) { mine[it.id] = true; });
+    var adopted = 0;
+    keys.forEach(function (k) {
+      if (!k || k.indexOf(STORE.queuePrefix) !== 0 || k === queueKey()) return;
+      var tab = k.slice(STORE.queuePrefix.length);
+      var alive = load(STORE.tabPrefix + tab, 0);
+      if (Date.now() - alive < 15000) return;
+      var items = load(k, []);
+      if (Array.isArray(items)) items.forEach(function (it) { if (it && it.id && !mine[it.id]) { mine[it.id] = true; it.tries = 0; it.nextAt = 0; state.queue.push(it); adopted += 1; } });
+      forget(k);
+      forget(STORE.tabPrefix + tab);
+    });
+    if (adopted) { persistQueue(); setNet(); flush(); }
+  }
+  function enqueue(item) {
+    item.at = Date.now();
+    state.queue.push(item);
+    persistQueue();
+    setNet();
+    flush();
+  }
+  function scheduleFlush(ms) {
+    clearTimeout(state.flushTimer);
+    state.flushTimer = setTimeout(flush, Math.max(50, ms));
   }
   function flush() {
     if (state.sending || !state.queue.length) return;
-    var item = state.queue[0];
-    if (item.nextAt && item.nextAt > Date.now()) { setTimeout(flush, item.nextAt - Date.now() + 50); return; }
-    state.sending = true;
-    var finish = function () {
-      state.queue.shift();
-      persistQueue();
-      state.sending = false;
-      setNet(true);
-      flush();
-    };
-    var fail = function (err) {
-      var message = String(err && err.message ? err.message : err);
-      state.sending = false;
-      if (isPermanent(message)) {
-        state.queue.shift();
-        persistQueue();
-        showBanner('One entry was not saved: ' + message);
-        setNet(true);
-        flush();
-        return;
-      }
-      item.tries = (item.tries || 0) + 1;
-      item.nextAt = Date.now() + Math.min(60000, 4000 * Math.pow(2, item.tries - 1));
-      persistQueue();
-      setNet(false, message);
-      setTimeout(flush, item.nextAt - Date.now() + 50);
-    };
-    var run;
-    try { run = server(item.kind === 'tap' ? 'recordTap' : 'recordGate').withSuccessHandler(function (res) { onResult(item, res); finish(); }).withFailureHandler(fail); }
-    catch (missing) { state.sending = false; showBanner(missing.message); setNet(false, 'script out of date'); return; }
-    if (item.kind === 'tap') run.recordTap(item.payload);
-    else if (item.kind === 'gate') run.recordGate(item.payload);
-    else finish();
-  }
-  function onResult(item, res) {
-    if (item.kind === 'tap' && res && res.refused) {
-      /* The sheet said no (someone else already took today's last one off): put the one we took off locally back. */
-      if (item.payload.campus === state.campus) {
-        state.counts[item.key] = (state.counts[item.key] || 0) - item.payload.delta;
-        renderCounts();
-      }
-      showBanner(res.reason);
+    var head = state.queue[0];
+    if (head.nextAt && head.nextAt > Date.now()) { scheduleFlush(head.nextAt - Date.now()); return; }
+    var batch = [head];
+    if (head.kind === 'tap') {
+      batch = [];
+      for (var i = 0; i < state.queue.length && batch.length < BATCH_MAX && state.queue[i].kind === 'tap'; i += 1) batch.push(state.queue[i]);
     }
-    if (item.kind === 'gate' && res && res.ok && item.payload.campus === state.campus && res.date === state.today) {
+    var run;
+    try { run = server(head.kind === 'tap' ? 'recordTaps' : 'recordGate'); }
+    catch (missing) { noteFailure(missing.message); return; }
+    state.sending = true;
+    var ids = {};
+    batch.forEach(function (it) { ids[it.id] = true; });
+    run = run.withSuccessHandler(function (res) {
+      state.sending = false;
+      state.queue = state.queue.filter(function (it) { return !ids[it.id]; });
+      persistQueue();
+      state.net.failing = false;
+      state.net.lastError = '';
+      state.net.lastSavedAt = Date.now();
+      if (head.kind === 'tap') applyTapResults(batch, res); else applyGateResult(head, res);
+      setNet();
+      flush();
+    }).withFailureHandler(function (err) {
+      state.sending = false;
+      var message = String(err && err.message ? err.message : err);
+      head.tries = (head.tries || 0) + 1;
+      head.nextAt = Date.now() + Math.min(60000, 3000 * Math.pow(2, head.tries - 1));
+      persistQueue();
+      noteFailure(message);
+      scheduleFlush(head.nextAt - Date.now());
+    });
+    if (head.kind === 'tap') run.recordTaps(batch.map(function (it) { return it.payload; }));
+    else run.recordGate(head.payload);
+  }
+  function applyTapResults(batch, res) {
+    if (!Array.isArray(res)) {
+      showBanner('The sheet answered in a shape this page does not understand. Paste the current Code.gs and publish a new version.');
+      fetchToday();
+      return;
+    }
+    var problem = null;
+    batch.forEach(function (it, i) {
+      var r = res[i] || {};
+      if (r.refused || r.permanent || r.ok === false) problem = r.reason || 'One tap was not saved.';
+    });
+    if (problem) {
+      showBanner(problem);
+      fetchToday(); /* the sheet is the truth: read its count back rather than guess */
+    }
+  }
+  function applyGateResult(item, res) {
+    if (res && res.ok && item.payload.campus === state.campus && res.date === state.today) {
       state.gate = res.blocks || {};
       renderGate();
+    } else if (res && res.ok === false) {
+      showBanner(res.reason || 'The gate count was not saved.');
+      fetchToday();
     }
   }
 
@@ -641,30 +691,34 @@ var CONFIG = <?!= configJson ?>;
     else if (ev.key === 'Enter') { el('padSave').click(); }
   });
 
-  /* ---------- today's counts from the sheet ---------- */
+  /* ---------- today's counts, read from the sheet: the sheet is the truth ---------- */
+  var fetching = false;
   function fetchToday() {
-    if (!state.campus || CONFIG.error) return;
+    if (!state.campus || CONFIG.error || fetching) return;
     var campus = state.campus;
     var todayRun;
-    try { todayRun = server('getTodayCounts'); } catch (missing) { showBanner(missing.message); return; }
+    try { todayRun = server('getTodayCounts'); } catch (missing) { noteFailure(missing.message); return; }
+    fetching = true;
     todayRun
       .withSuccessHandler(function (res) {
+        fetching = false;
         if (campus !== state.campus) return;
         if (res && res.date && res.date !== state.today) rollDay(res.date);
-        var pending = {};
-        state.queue.forEach(function (it) {
-          if (it.kind === 'tap' && it.payload.campus === campus) pending[it.key] = (pending[it.key] || 0) + it.payload.delta;
-        });
+        var have = {};
+        (res.tapIds || []).forEach(function (id) { have[id] = true; });
         state.counts = res.taps || {};
-        Object.keys(pending).forEach(function (k) { state.counts[k] = (state.counts[k] || 0) + pending[k]; });
+        /* add only the taps the sheet does not have yet; the ids make that exact */
+        state.queue.forEach(function (it) {
+          if (it.kind === 'tap' && it.payload.campus === campus && !have[it.payload.tapId]) state.counts[it.key] = (state.counts[it.key] || 0) + it.payload.delta;
+        });
         state.gate = res.gate || {};
         state.queue.forEach(function (it) { if (it.kind === 'gate' && it.payload.campus === campus && it.payload.date === state.today) state.gate[it.payload.block] = it.payload.count; });
         renderCounts();
         renderGate();
-        setNet(true);
       })
       .withFailureHandler(function (err) {
-        setNet(false, String(err && err.message ? err.message : err));
+        fetching = false;
+        noteFailure(String(err && err.message ? err.message : err));
       })
       .getTodayCounts(campus);
   }
@@ -679,7 +733,8 @@ var CONFIG = <?!= configJson ?>;
 
   /* ---------- start ---------- */
   el('bannerClose').addEventListener('click', hideBanner);
-  state.queue = load(STORE.queue, []);
+  heartbeat();
+  state.queue = load(queueKey(), []);
   if (!Array.isArray(state.queue)) state.queue = [];
   if (CONFIG.error) {
     showBanner('Desk Stats cannot start: ' + CONFIG.error);
@@ -702,15 +757,19 @@ var CONFIG = <?!= configJson ?>;
     showBanner('No campuses were found, so there is nothing to tap. In the script editor open Code.gs, pick setup in the function list, and click Run. Then reload this page.');
   }
   renderCampusScreen();
-  setNet(true);
+  adoptOrphans();
+  setNet();
   window.addEventListener('online', flush);
+  window.addEventListener('pagehide', function () { heartbeat(false); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { fetchToday(); flush(); } });
+  setInterval(function () { heartbeat(); flush(); }, 3000);
+  setInterval(adoptOrphans, 30 * 1000);
   setInterval(function () {
     var key = dayKey(now());
-    if (key !== state.today) { rollDay(key); fetchToday(); }
+    if (key !== state.today) { rollDay(key); }
+    fetchToday();
     if (state.campus) renderGate();
   }, 60 * 1000);
-  setInterval(fetchToday, 5 * 60 * 1000);
-  setInterval(function () { flush(); if (state.queue.length) setNet(!stuckCount()); }, 3000);
 })();
 </script>
 </body>

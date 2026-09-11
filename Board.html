@@ -226,7 +226,7 @@ var CONFIG = <?!= configJson ?>;
     el('refreshBtn').disabled = true;
     el('refreshBtn').title = 'Fix the problem in the red box first';
   }
-  var PAGE_BUILD = 'DS-2026-09-11-08';
+  var PAGE_BUILD = 'DS-2026-09-11-09';
   if (!CONFIG.error && CONFIG.build !== PAGE_BUILD) showBanner('This page and Code.gs are from different rounds (page ' + PAGE_BUILD + ', script ' + (CONFIG.build || 'older than the stamps') + '). Paste the current copies of all four files, save each, and publish a new version (or use the test address).');
   if (CONFIG.webAppUrl) { el('dashBtn').href = CONFIG.webAppUrl + '?view=trends'; el('tapBtn').href = CONFIG.webAppUrl; }
   renderPicker();

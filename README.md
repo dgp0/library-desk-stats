@@ -84,6 +84,21 @@ LimeSurvey export by import/limesurvey_to_history.py, and
 - "Last 10 taps" on the tap page lists the newest taps at that campus with time, who, kind, mode and +1 or -1.
 - Never count rows in this sheet. A row is +1, -1, or a typed-in history day's number. Sum the Count column.
 
+## If numbers were saved by an earlier round (one-time repair)
+
+Rows written by the versions before DS-2026-09-11-09 could be filed under
+the wrong day, and a gate block could be saved twice. In the script editor
+click **Code.gs**, pick **repairDates** in the function list, click **Run**.
+The Execution log says how many rows it re-dated and how many duplicate
+gate rows it removed. Running it again changes nothing more.
+
+## How saving works (so the corner makes sense)
+
+- A tap is written to the device's storage and sent to the sheet at once. Taps made in a burst go up in one call, in order.
+- The corner says **Saving N** while a send is in progress, **Connected** when nothing is waiting, and **Cannot reach the sheet** only when a send has actually failed; the red box then shows the sheet's own words, and the page keeps trying by itself.
+- Every minute, and whenever the tab comes back into view, the page re-reads today's counts from the sheet. The sheet is the truth; the page adds only the taps the sheet has not received yet.
+- Each browser tab keeps its own queue. A tab closed with taps still waiting leaves them for the next open tab to send.
+
 ## Things worth knowing
 
 - If the wifi drops, taps wait on the device and send themselves when it is back. The top right corner says how many are waiting.

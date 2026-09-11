@@ -12,7 +12,7 @@
 
 const APP = {
   name: 'Desk Stats',
-  build: 'DS-2026-09-11-08', /* the pages carry the same stamp; a mismatch is reported on screen */
+  build: 'DS-2026-09-11-09', /* the pages carry the same stamp; a mismatch is reported on screen */
   timeZone: 'America/Chicago',  /* every date in this script is worked out in this zone, never in the project's own clock setting */
   campuses: ['Smyrna', 'Moore County', 'Fayetteville', 'McMinnville'],
   blocks: ['7:30 AM - Noon', 'Noon - 4:30 PM', '4:30 PM - Close'],
@@ -322,17 +322,19 @@ function getTodayCounts(campusName) {
   const ss = getWorkbook_();
   const today = todayKey_(new Date());
   const taps = {};
+  const tapIds = [];
   logRows_(ss).forEach(row => {
     if (row.date !== today || row.campus !== campusName) return;
     const key = row.category + '|' + row.mode;
     taps[key] = (taps[key] || 0) + row.count;
+    if (row.tapId) tapIds.push(row.tapId);
   });
   const gate = {};
   gateRows_(ss).forEach(row => {
     if (row.date !== today || row.campus !== campusName) return;
     gate[row.block] = row.count;
   });
-  return { date: today, campus: campusName, taps: taps, gate: gate, serverNow: Date.now() };
+  return { date: today, campus: campusName, taps: taps, tapIds: tapIds, gate: gate, serverNow: Date.now(), build: APP.build };
 }
 
 /** The current week's paper grid for one campus or for all of them. */
@@ -385,10 +387,11 @@ function logRows_(ss) {
   const sh = ss.getSheetByName(SHEETS.log.name);
   const last = sh.getLastRow();
   if (last < 2) return [];
-  return sh.getRange(2, 2, last - 1, 7).getValues().map(v => ({
+  return sh.getRange(2, 2, last - 1, 10).getValues().map(v => ({
     date: keyOf_(v[0]),
     hour: (v[1] === '' || v[1] === null) ? null : Number(v[1]),
     campus: String(v[3]).trim(), category: String(v[4]).trim(), mode: String(v[5]).trim(), count: Number(v[6]) || 0,
+    source: String(v[8] || '').trim(), tapId: String(v[9] || '').trim(),
   }));
 }
 
@@ -505,46 +508,80 @@ function gateRows_(ss) {
 
 /** One tap: one row in Log, stamped with Google's clock, never twice for the same tap id. */
 function recordTap(tap) {
-  const t = tap || {};
-  const campus = String(t.campus || '').trim();
-  const category = String(t.category || '').trim();
-  const mode = String(t.mode || '').trim();
-  const tapId = String(t.tapId || '').trim();
-  const delta = Number(t.delta) === -1 ? -1 : 1;
+  return recordTaps([tap])[0];
+}
+
+/**
+ * Saves a burst of taps in order under one lock and returns one answer per tap, in the same
+ * order: {tapId, ok, delta} saved; {ok, duplicate} already there (a resend); {ok:false, refused,
+ * reason} a take-off that would push today's number below zero; {ok:false, permanent, reason}
+ * a tap the sheet can never accept (unknown campus or button).
+ */
+function recordTaps(list) {
+  const items = Array.isArray(list) ? list.slice(0, 50) : [];
+  if (!items.length) return [];
   const config = getConfig();
-  if (!config.campuses.some(c => c.name === campus)) throw new Error('The campus "' + campus + '" is not in the Campuses tab. Reload the page.');
-  if (!config.buttons.some(b => b.category === category)) throw new Error('The button "' + category + '" is not in the Buttons tab. Reload the page.');
-  if (APP.modes.indexOf(mode) < 0) throw new Error('Unknown mode: ' + mode);
-  if (!tapId) throw new Error('The tap had no id; reload the page.');
   const ss = getWorkbook_();
   const lock = LockService.getScriptLock();
-  lock.waitLock(15000);
+  lock.waitLock(20000);
   try {
     const sh = ss.getSheetByName(SHEETS.log.name);
-    if (findRecentRow_(sh, 11, tapId, 400) > 0) return { ok: true, duplicate: true, tapId: tapId, delta: delta };
     const now = new Date();
-    if (delta === -1) {
-      const net = todayNet_(sh, todayKey_(now), campus, category, mode);
-      if (net <= 0) return { ok: false, refused: true, tapId: tapId, delta: delta, net: 0, reason: 'Nothing to take off: today\'s count for ' + category + ', ' + mode + ' at ' + campus + ' is already 0 in the sheet.' };
-    }
-    sh.appendRow([now, dateOnly_(now), hourOf_(now), weekday_(now), campus, category, mode, delta, whoAmI_(t.device), 'tap', tapId]);
-    return { ok: true, tapId: tapId, delta: delta, when: now.toISOString() };
+    const today = todayKey_(now);
+    const seen = recentTapIds_(sh, 800);
+    const net = todayNets_(sh, today);
+    const rows = [];
+    const results = items.map(raw => {
+      const t = raw || {};
+      const campus = String(t.campus || '').trim();
+      const category = String(t.category || '').trim();
+      const mode = String(t.mode || '').trim();
+      const tapId = String(t.tapId || '').trim();
+      const delta = Number(t.delta) === -1 ? -1 : 1;
+      if (!tapId) return { tapId: tapId, ok: false, permanent: true, reason: 'A tap arrived without an id. Reload the page.' };
+      if (!config.campuses.some(c => c.name === campus)) return { tapId: tapId, ok: false, permanent: true, reason: 'The campus "' + campus + '" is not in the Campuses tab. Reload the page.' };
+      if (!config.buttons.some(b => b.category === category)) return { tapId: tapId, ok: false, permanent: true, reason: 'The button "' + category + '" is not in the Buttons tab. Reload the page.' };
+      if (APP.modes.indexOf(mode) < 0) return { tapId: tapId, ok: false, permanent: true, reason: 'Unknown mode: ' + mode };
+      if (seen[tapId]) return { tapId: tapId, ok: true, duplicate: true, delta: delta };
+      const key = campus + '|' + category + '|' + mode;
+      if (delta === -1 && (net[key] || 0) <= 0) {
+        return { tapId: tapId, ok: false, refused: true, delta: delta, reason: 'Nothing to take off: today\'s count for ' + category + ', ' + mode + ' at ' + campus + ' is already 0 in the sheet.' };
+      }
+      net[key] = (net[key] || 0) + delta;
+      seen[tapId] = true;
+      rows.push([now, dateOnly_(now), hourOf_(now), weekday_(now), campus, category, mode, delta, whoAmI_(t.device), 'tap', tapId]);
+      return { tapId: tapId, ok: true, delta: delta };
+    });
+    if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, SHEETS.log.headers.length).setValues(rows);
+    return results;
   } finally {
     lock.releaseLock();
   }
 }
 
-/** Today's net count (adds minus subtractions) for one campus, kind and mode. */
-function todayNet_(sh, today, campus, category, mode) {
+/** The tap ids in the newest rows, so a resend of the same tap is recognised and not written twice. */
+function recentTapIds_(sh, maxRows) {
+  const seen = {};
   const last = sh.getLastRow();
-  if (last < 2) return 0;
-  const rows = sh.getRange(2, 2, last - 1, 7).getValues();
-  let net = 0;
-  for (let i = rows.length - 1; i >= 0; i -= 1) {
-    const v = rows[i];
-    if (keyOf_(v[0]) !== today) continue;
-    if (String(v[3]).trim() === campus && String(v[4]).trim() === category && String(v[5]).trim() === mode) net += Number(v[6]) || 0;
-  }
+  if (last < 2) return seen;
+  const n = Math.min(last - 1, maxRows);
+  sh.getRange(last - n + 1, 11, n, 1).getValues().forEach(v => {
+    const id = String(v[0] || '').trim();
+    if (id) seen[id] = true;
+  });
+  return seen;
+}
+
+/** Today's net count (adds minus take-offs) for every campus, kind and mode, in one read. */
+function todayNets_(sh, today) {
+  const net = {};
+  const last = sh.getLastRow();
+  if (last < 2) return net;
+  sh.getRange(2, 2, last - 1, 7).getValues().forEach(v => {
+    if (keyOf_(v[0]) !== today) return;
+    const key = String(v[3]).trim() + '|' + String(v[4]).trim() + '|' + String(v[5]).trim();
+    net[key] = (net[key] || 0) + (Number(v[6]) || 0);
+  });
   return net;
 }
 
@@ -676,7 +713,84 @@ function dateOnly_(d) {
   return dateFromKey_(todayKey_(d));
 }
 function dateFromKey_(key) {
-  return Utilities.parseDate(String(key).trim(), APP.timeZone, 'yyyy-MM-dd');
+  /* Midnight of that day in the app's zone, found with the clock formatter alone:
+     start at noon UTC of the same calendar day and step an hour at a time until the
+     formatter reads that day at hour 00. Works across daylight-saving changes. */
+  const k = String(key).trim();
+  const p = k.split('-').map(Number);
+  const want = k + ' 00';
+  let guess = new Date(Date.UTC(p[0], p[1] - 1, p[2], 12));
+  for (let i = 0; i < 48; i += 1) {
+    const stamp = Utilities.formatDate(guess, APP.timeZone, 'yyyy-MM-dd HH');
+    if (stamp === want) return guess;
+    guess = new Date(guess.getTime() - 3600000 * (stamp > want ? 1 : -1));
+  }
+  return guess;
+}
+
+/**
+ * One-off repair, safe to run again: re-dates every tap row from its own time stamp,
+ * re-dates gate rows that an earlier version filed one day early, and removes gate
+ * rows that were saved twice for the same campus, day and block (the newest stays).
+ */
+function repairDates() {
+  const ss = getWorkbook_();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const lines = [];
+    const log = ss.getSheetByName(SHEETS.log.name);
+    const last = log.getLastRow();
+    let fixedTaps = 0;
+    if (last >= 2) {
+      const rows = log.getRange(2, 1, last - 1, 10).getValues();
+      const out = rows.map(r => {
+        const when = r[0];
+        if (String(r[9]).trim() !== 'tap' || !(when && typeof when.getTime === 'function')) return [r[1], r[2], r[3]];
+        const key = todayKey_(when);
+        const hour = hourOf_(when);
+        const day = weekday_(when);
+        if (keyOf_(r[1]) !== key || Number(r[2]) !== hour || String(r[3]) !== day) fixedTaps += 1;
+        return [dateFromKey_(key), hour, day];
+      });
+      log.getRange(2, 2, out.length, 3).setValues(out);
+    }
+    lines.push('Log: ' + fixedTaps + ' tap rows re-dated from their time stamp.');
+
+    const gate = ss.getSheetByName(SHEETS.gate.name);
+    const glast = gate.getLastRow();
+    let fixedGate = 0;
+    let removed = 0;
+    if (glast >= 2) {
+      const rows = gate.getRange(2, 1, glast - 1, 7).getValues();
+      const dates = rows.map(r => {
+        const when = r[6];
+        if (String(r[5]).trim() !== 'tap' || !(when && typeof when.getTime === 'function')) return [r[0]];
+        const whenKey = todayKey_(when);
+        if (keyOf_(r[0]) === addDaysKey_(whenKey, -1)) { fixedGate += 1; return [dateFromKey_(whenKey)]; }
+        return [r[0]];
+      });
+      gate.getRange(2, 1, dates.length, 1).setValues(dates);
+      const newest = {};
+      rows.forEach((r, i) => {
+        const key = keyOf_(dates[i][0]) + '|' + String(r[1]).trim() + '|' + String(r[2]).trim();
+        const stamp = (r[6] && typeof r[6].getTime === 'function') ? r[6].getTime() : 0;
+        if (!newest[key] || stamp >= newest[key].stamp) newest[key] = { row: i + 2, stamp: stamp };
+      });
+      const keep = {};
+      Object.keys(newest).forEach(k => { keep[newest[k].row] = true; });
+      for (let i = rows.length - 1; i >= 0; i -= 1) {
+        const rowNumber = i + 2;
+        if (!keep[rowNumber]) { gate.deleteRow(rowNumber); removed += 1; }
+      }
+    }
+    lines.push('Gate: ' + fixedGate + ' rows moved to the right day; ' + removed + ' duplicate rows removed.');
+    CacheService.getScriptCache().remove('config');
+    Logger.log(lines.join('\n'));
+    return lines.join('\n');
+  } finally {
+    lock.releaseLock();
+  }
 }
 function hourOf_(d) {
   return Number(Utilities.formatDate(d, APP.timeZone, 'H'));

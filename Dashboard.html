@@ -33,7 +33,7 @@
   .btn.on { background: var(--green); color: #fff; }
   .btn.on-yellow { background: var(--yellow); color: var(--ink); }
   .btn:disabled { background: var(--gray); box-shadow: none; transform: none; cursor: not-allowed; }
-  .wrap { max-width: 1400px; margin: 0 auto; padding: 16px; }
+  .wrap { max-width: 1500px; margin: 0 auto; padding: 16px; }
   .banner { border: 3px solid var(--err); border-left-width: 10px; background: var(--err-wash); padding: 12px 14px; margin: 16px; font-weight: 700; }
   .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
   .controls .label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
@@ -43,12 +43,13 @@
   .tile .num { font-family: var(--mono); font-size: 34px; line-height: 1.05; margin: 6px 0 4px; letter-spacing: -0.02em; }
   .tile .sub { font-size: 12px; color: var(--muted); font-weight: 700; }
   .tile .up { color: var(--green); } .tile .down { color: var(--err); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 18px; }
-  .card { border: 3px solid var(--ink); box-shadow: var(--shadow); padding: 12px 14px 14px; background: var(--paper); min-width: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 22px; }
+  .card { border: 3px solid var(--ink); box-shadow: var(--shadow); padding: 12px 14px 14px; background: var(--paper); min-width: 0; overflow: hidden; }
   .card.wide { grid-column: 1 / -1; }
   .card h2 { font-family: var(--slab); font-size: 17px; margin: 0 0 2px; }
   .card .why { font-size: 12px; color: var(--muted); margin: 0 0 8px; min-height: 1.2em; }
-  .chart { width: 100%; height: 290px; }
+  .chart { width: 100%; height: 300px; }
+  .chart.half { height: 150px; }
   .empty { border: 3px dashed var(--gray); padding: 18px; color: var(--muted); font-weight: 700; text-align: center; }
   .callouts { border: 3px solid var(--ink); border-left-width: 10px; padding: 12px 16px; margin: 0 0 18px; }
   .callouts h2 { font-family: var(--slab); font-size: 18px; margin: 0 0 8px; }
@@ -60,7 +61,7 @@
   table.plain th { background: var(--ink); color: #fff; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; }
   table.plain td.l, table.plain th.l { text-align: left; font-family: var(--sans); font-weight: 700; }
   .foot { color: var(--muted); font-size: 12px; margin-top: 16px; }
-  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .chart { height: 250px; } }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .chart { height: 260px; } }
   @media print { .controls, .btn { display: none; } .card, .tile { box-shadow: none; break-inside: avoid; } }
 </style>
 </head>
@@ -172,6 +173,7 @@ var DeskStatsCalc = (function () {
     var r = pearson(pts.map(function (p) { return p.x; }), pts.map(function (p) { return p.y; }));
     return { points: pts, r: r, n: pts.length };
   }
+  function round2(x) { return (Math.round(x * 100) / 100).toFixed(2); }
   function describeR(r, n) {
     if (r === null || n < 10) return 'not enough days with both numbers to say';
     var a = Math.abs(r);
@@ -204,7 +206,7 @@ var DeskStatsCalc = (function () {
   return {
     DAY_NAMES: DAY_NAMES, toDate: toDate, toKey: toKey, addDays: addDays, sundayOf: sundayOf, monthOf: monthOf, daysBetween: daysBetween,
     prettyDay: prettyDay, prettyShort: prettyShort, prettyMonth: prettyMonth, sum: sum, questions: questions, visitors: visitors,
-    filter: filter, rollup: rollup, totals: totals, weekdayPattern: weekdayPattern, pearson: pearson, scatter: scatter, describeR: describeR,
+    filter: filter, rollup: rollup, totals: totals, weekdayPattern: weekdayPattern, pearson: pearson, scatter: scatter, round2: round2, describeR: describeR,
     topDays: topDays, terms: terms, previousWindow: previousWindow, pctChange: pctChange, per100: per100,
   };
 })();
@@ -215,8 +217,11 @@ var CONFIG = <?!= configJson ?>;
 (function () {
   'use strict';
   var C = DeskStatsCalc;
-  var PALETTE = ['#006633', '#b58f00', '#009639', '#212721', '#c22f1f', '#7a7a7a'];
-  var CAT_PALETTE = ['#006633', '#009639', '#b58f00', '#212721', '#00492a', '#7a7a7a', '#c22f1f'];
+  /* Motlow green, gold, ink, grey: four campuses that stay apart on a white page. */
+  var CAMPUS_COLORS = ['#006633', '#d6a800', '#212721', '#8c8c8c'];
+  var PAIR = ['#006633', '#d6a800'];
+  var BLOCK_COLORS = ['#006633', '#009639', '#d6a800'];
+  var CAT_COLORS = ['#006633', '#d6a800', '#212721', '#009639', '#8c8c8c', '#7a5c00', '#c22f1f'];
   var state = { data: null, campus: 'all', period: { key: 'all', from: null, to: null, label: 'Everything' }, chartsReady: false, busy: false };
   function el(id) { return document.getElementById(id); }
   function showBanner(t) { el('banner').textContent = t; el('banner').hidden = false; }
@@ -224,18 +229,23 @@ var CONFIG = <?!= configJson ?>;
   function fmt(n) { return Math.round(n).toLocaleString('en-US'); }
   function fmt1(n) { return (Math.round(n * 10) / 10).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
   function timeNow() { var d = new Date(); return (d.getHours() % 12 || 12) + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + (d.getHours() < 12 ? ' am' : ' pm'); }
+  function merge(base, extra) { var o = {}; var k; for (k in base) if (Object.prototype.hasOwnProperty.call(base, k)) o[k] = base[k]; for (k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) o[k] = extra[k]; return o; }
+  var AXIS_TEXT = { color: '#494949', fontSize: 11, fontName: 'Raleway' };
+  function hAxis(extra) { return merge({ textStyle: AXIS_TEXT, gridlines: { color: 'transparent' }, baselineColor: '#212721', slantedText: false }, extra || {}); }
+  function vAxis(extra) { return merge({ textStyle: AXIS_TEXT, gridlines: { color: '#e5e5e5', count: 5 }, minorGridlines: { count: 0 }, baselineColor: '#212721', viewWindow: { min: 0 }, format: 'short' }, extra || {}); }
   function baseOptions(extra) {
+    var legendTop = !(extra && extra.legend === 'none');
     var o = {
       fontName: 'Raleway', fontSize: 12, backgroundColor: 'transparent',
-      chartArea: { left: 56, top: 12, right: 12, bottom: 48, width: '100%', height: '100%' },
-      legend: { position: 'bottom', textStyle: { color: '#212721' } },
-      hAxis: { textStyle: { color: '#494949', fontSize: 11 }, gridlines: { color: '#e5e5e5' }, baselineColor: '#212721' },
-      vAxis: { textStyle: { color: '#494949', fontSize: 11 }, gridlines: { color: '#e5e5e5' }, baselineColor: '#212721', minValue: 0, viewWindow: { min: 0 } },
-      colors: PALETTE, tooltip: { textStyle: { fontName: 'Raleway' } },
+      chartArea: { left: 56, top: legendTop ? 44 : 14, right: 16, bottom: 40 },
+      legend: { position: 'top', alignment: 'start', maxLines: 3, textStyle: { color: '#212721', fontSize: 12 } },
+      hAxis: hAxis(), vAxis: vAxis(),
+      colors: CAMPUS_COLORS, tooltip: { textStyle: { fontName: 'Raleway' } },
+      bar: { groupWidth: '70%' }, animation: { duration: 0 },
     };
-    for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) o[k] = extra[k];
-    return o;
+    return merge(o, extra || {});
   }
+  function everyNth(n) { return Math.max(1, Math.ceil(n / 8)); }
 
   /* ---------- pickers ---------- */
   function renderPickers() {
@@ -281,9 +291,9 @@ var CONFIG = <?!= configJson ?>;
     if (cls) t.querySelector('.sub').className = 'sub ' + cls;
     return t;
   }
-  function changeText(now, before, what) {
+  function changeText(now, before) {
     var pct = C.pctChange(now, before);
-    if (pct === null) return { text: 'no earlier ' + what + ' to compare', cls: '' };
+    if (pct === null) return { text: 'nothing earlier to compare with', cls: '' };
     var sign = pct >= 0 ? '+' : '';
     return { text: sign + Math.round(pct) + '% vs the same length of time before', cls: pct >= 0 ? 'up' : 'down' };
   }
@@ -295,9 +305,9 @@ var CONFIG = <?!= configJson ?>;
       var pw = C.previousWindow(state.period.from, state.period.to);
       prev = C.totals(C.filter(state.data.daily, state.campus, pw.from, pw.to));
     }
-    var q = changeText(tot.q, prev ? prev.q : null, 'period');
+    var q = changeText(tot.q, prev ? prev.q : null);
     box.appendChild(tile('Questions answered', fmt(tot.q), prev ? q.text : (tot.daysWithQ + ' days with questions recorded'), prev ? q.cls : ''));
-    var g = changeText(tot.g, prev ? prev.g : null, 'period');
+    var g = changeText(tot.g, prev ? prev.g : null);
     box.appendChild(tile('Visitors (gate count)', fmt(tot.g), prev ? g.text : (tot.days + ' days with a gate count'), prev ? g.cls : ''));
     var ratio = C.per100(tot.q, tot.g);
     box.appendChild(tile('Questions per 100 visitors', ratio === null ? 'n/a' : fmt1(ratio), ratio === null ? 'needs a gate count' : 'how often a visitor asks for help'));
@@ -309,23 +319,30 @@ var CONFIG = <?!= configJson ?>;
     box.appendChild(tile('Busiest week', weeks.length ? 'Week of ' + C.prettyShort(weeks[0].key) : 'n/a', weeks.length ? fmt(weeks[0].q) + ' questions, ' + fmt(weeks[0].g) + ' visitors' : ''));
   }
 
-  /* ---------- cards ---------- */
+  /* ---------- cards and drawing ---------- */
   function card(title, why, wide) {
     var c = document.createElement('section');
     c.className = 'card' + (wide ? ' wide' : '');
-    c.innerHTML = '<h2></h2><p class="why"></p><div class="chart"></div>';
+    c.innerHTML = '<h2></h2><p class="why"></p>';
     c.querySelector('h2').textContent = title;
     c.querySelector('.why').textContent = why;
     el('cards').appendChild(c);
-    return c.querySelector('.chart');
+    return c;
   }
-  function emptyInto(div, text) { div.className = 'empty'; div.textContent = text; }
+  function chartDiv(cardEl, half) {
+    var d = document.createElement('div');
+    d.className = 'chart' + (half ? ' half' : '');
+    cardEl.appendChild(d);
+    return d;
+  }
+  function emptyInto(div, text) { div.className = 'empty'; div.style.height = 'auto'; div.textContent = text; }
   function draw(kind, div, rows, options) {
     if (!rows || rows.length < 2) { emptyInto(div, 'Nothing recorded in this period.'); return; }
     var data = google.visualization.arrayToDataTable(rows);
     var chart = new google.visualization[kind](div);
     chart.draw(data, options);
   }
+  var dateCol = { label: 'Week', type: 'date' };
 
   function render() {
     if (!state.data || !state.chartsReady) return;
@@ -333,82 +350,104 @@ var CONFIG = <?!= configJson ?>;
     var tot = C.totals(days);
     var campuses = state.campus === 'all' ? state.data.campuses : [state.campus];
     var cats = state.data.categories;
+    var blocks = state.data.blocks;
     renderTiles(days, tot);
     el('cards').innerHTML = '';
 
-    /* 1. questions per week */
+    /* 1. questions per week: a real date axis, so Google spaces the labels itself */
     var weeks = C.rollup(days, C.sundayOf);
     var d1 = state.campus === 'all'
-      ? [['Week'].concat(campuses)].concat(weeks.map(function (w) { return [C.prettyShort(w.key)].concat(campuses.map(function (c) { return w.byCampus[c] ? w.byCampus[c].q : 0; })); }))
-      : [['Week', 'In person', 'Remote']].concat(weeks.map(function (w) { return [C.prettyShort(w.key), w.ip, w.rm]; }));
-    draw('LineChart', card('Questions per week', 'Every question answered, week by week. Term starts and finals show up as peaks.'), d1, baseOptions({ lineWidth: 3, pointSize: 4, colors: state.campus === 'all' ? PALETTE : ['#006633', '#b58f00'] }));
+      ? [[dateCol].concat(campuses)].concat(weeks.map(function (w) { return [C.toDate(w.key)].concat(campuses.map(function (c) { return w.byCampus[c] ? w.byCampus[c].q : 0; })); }))
+      : [[dateCol, 'In person', 'Remote']].concat(weeks.map(function (w) { return [C.toDate(w.key), w.ip, w.rm]; }));
+    draw('LineChart', chartDiv(card('Questions per week', 'Every question answered, week by week. Term starts and finals show up as peaks.')), d1,
+      baseOptions({ lineWidth: 3, pointSize: 4, colors: state.campus === 'all' ? CAMPUS_COLORS : PAIR, hAxis: hAxis({ format: 'MMM d' }), interpolateNulls: true }));
 
     /* 2. visitors per week */
     var d2 = state.campus === 'all'
       ? [['Week'].concat(campuses)].concat(weeks.map(function (w) { return [C.prettyShort(w.key)].concat(campuses.map(function (c) { return w.byCampus[c] ? w.byCampus[c].g : 0; })); }))
-      : [['Week'].concat(state.data.blocks)].concat(weeks.map(function (w) { return [C.prettyShort(w.key)].concat(state.data.blocks.map(function (b) { return w.byBlock[b] || 0; })); }));
-    draw('ColumnChart', card('Visitors per week', state.campus === 'all' ? 'Gate counts by campus.' : 'Gate counts split by time block.'), d2, baseOptions({ isStacked: true, colors: state.campus === 'all' ? PALETTE : ['#006633', '#009639', '#b58f00'] }));
+      : [['Week'].concat(blocks)].concat(weeks.map(function (w) { return [C.prettyShort(w.key)].concat(blocks.map(function (b) { return w.byBlock[b] || 0; })); }));
+    draw('ColumnChart', chartDiv(card('Visitors per week', state.campus === 'all' ? 'Gate counts by campus, stacked.' : 'Gate counts by time block, stacked.')), d2,
+      baseOptions({ isStacked: true, colors: state.campus === 'all' ? CAMPUS_COLORS : BLOCK_COLORS, hAxis: hAxis({ showTextEvery: everyNth(weeks.length) }) }));
 
-    /* 3. questions by month and category */
+    /* 3. questions by month and kind */
     var months = C.rollup(days, C.monthOf);
     var d3 = [['Month'].concat(cats)].concat(months.map(function (m) { return [C.prettyMonth(m.key)].concat(cats.map(function (c) { return m.byCat[c] || 0; })); }));
-    draw('ColumnChart', card('Questions by month and kind', 'What people needed, month by month.'), d3, baseOptions({ isStacked: true, colors: CAT_PALETTE }));
+    draw('ColumnChart', chartDiv(card('Questions by month and kind', 'What people needed, month by month.')), d3,
+      baseOptions({ isStacked: true, colors: CAT_COLORS, hAxis: hAxis({ showTextEvery: everyNth(months.length) }), chartArea: { left: 56, top: 60, right: 16, bottom: 40 } }));
 
-    /* 4. campus comparison */
+    /* 4. campus comparison: two small bar charts, so questions are not crushed beside visitors */
     if (state.campus === 'all') {
-      var d4 = [['Campus', 'Questions', 'Visitors', { role: 'annotation' }]].concat(campuses.map(function (c) {
+      var cc = card('Campus comparison', 'Questions above, visitors below. The note on each questions bar is questions per 100 visitors.');
+      var rowsQ = [['Campus', 'Questions', { role: 'annotation' }]].concat(campuses.map(function (c) {
         var t = tot.byCampus[c] || { q: 0, g: 0 };
         var r = C.per100(t.q, t.g);
-        return [c, t.q, t.g, r === null ? '' : fmt1(r) + ' per 100'];
+        return [c, t.q, r === null ? fmt(t.q) : fmt1(r) + ' per 100'];
       }));
-      draw('BarChart', card('Campus comparison', 'Questions and visitors side by side; the note is questions per 100 visitors.'), d4,
-        baseOptions({ chartArea: { left: 110, top: 12, right: 24, bottom: 48, width: '100%', height: '100%' }, hAxis: { minValue: 0, textStyle: { color: '#494949', fontSize: 11 }, gridlines: { color: '#e5e5e5' } }, vAxis: { textStyle: { color: '#212721', fontSize: 12 } }, colors: ['#006633', '#b58f00'], annotations: { textStyle: { fontName: 'JetBrains Mono', fontSize: 11, color: '#212721' }, alwaysOutside: true } }));
+      var rowsG = [['Campus', 'Visitors', { role: 'annotation' }]].concat(campuses.map(function (c) { var t = tot.byCampus[c] || { g: 0 }; return [c, t.g, fmt(t.g)]; }));
+      var barOpts = function (color) {
+        return baseOptions({
+          legend: 'none', colors: [color], chartArea: { left: 110, top: 8, right: 110, bottom: 26 },
+          hAxis: hAxis({ viewWindow: { min: 0 }, format: 'short', gridlines: { color: '#e5e5e5', count: 4 } }),
+          vAxis: { textStyle: { color: '#212721', fontSize: 12, fontName: 'Raleway' } },
+          annotations: { textStyle: { fontName: 'JetBrains Mono', fontSize: 11, color: '#212721' }, alwaysOutside: true, stem: { length: 4 } },
+          bar: { groupWidth: '62%' },
+        });
+      };
+      draw('BarChart', chartDiv(cc, true), rowsQ, barOpts('#006633'));
+      draw('BarChart', chartDiv(cc, true), rowsG, barOpts('#d6a800'));
     }
 
     /* 5. weekday pattern */
     var wp = C.weekdayPattern(days);
-    var d5 = [['Day', 'Questions on an average day', 'Visitors on an average day']].concat(wp.map(function (w) { return [w.name.slice(0, 3), Math.round(w.avgQ * 10) / 10, Math.round(w.avgG)]; }));
-    draw('ColumnChart', card('Weekday pattern', 'Averages over the days that have a record; a day with nothing recorded does not pull the average down.'), d5,
-      baseOptions({ series: { 1: { targetAxisIndex: 1 } }, vAxes: { 0: { title: 'questions', minValue: 0 }, 1: { title: 'visitors', minValue: 0 } }, colors: ['#006633', '#b58f00'] }));
+    var d5 = [['Day', 'Questions', 'Visitors']].concat(wp.map(function (w) { return [w.name.slice(0, 3), Math.round(w.avgQ * 10) / 10, Math.round(w.avgG)]; }));
+    draw('ColumnChart', chartDiv(card('Weekday pattern', 'On an average day of each weekday: questions on the left scale, visitors on the right. Days with nothing recorded are left out of the average.')), d5,
+      baseOptions({ colors: PAIR, series: { 1: { targetAxisIndex: 1 } }, chartArea: { left: 56, top: 44, right: 64, bottom: 40 },
+        vAxes: { 0: vAxis({ title: 'questions', titleTextStyle: { color: '#494949', italic: false, fontSize: 11 } }), 1: vAxis({ title: 'visitors', titleTextStyle: { color: '#494949', italic: false, fontSize: 11 }, gridlines: { color: 'transparent' } }) } }));
 
-    /* 6. visitors vs questions */
+    /* 6. visitors against questions */
     var sc = C.scatter(days);
-    var scDiv = card('Visitors against questions, day by day', 'Each dot is one day at one campus. ' + (sc.r === null ? '' : 'How strongly they move together: ' + fmt1(sc.r * 100) / 100 + ', ' + C.describeR(sc.r, sc.n) + '.'));
+    var scDiv = chartDiv(card('Visitors against questions, day by day', 'Each dot is one day at one campus. ' + (sc.r === null ? '' : 'How strongly they move together: ' + C.round2(sc.r) + ' on a scale from -1 to 1, ' + C.describeR(sc.r, sc.n) + '.')));
     if (sc.n < 3) emptyInto(scDiv, 'Needs days with both a gate count and questions.');
     else {
       var d6 = [['Visitors', 'Questions']].concat(sc.points.map(function (p) { return [p.x, p.y]; }));
-      draw('ScatterChart', scDiv, d6, baseOptions({ legend: 'none', pointSize: 5, colors: ['#006633'], trendlines: { 0: { color: '#b58f00', lineWidth: 3, opacity: 0.9 } }, hAxis: { title: 'visitors that day', minValue: 0, textStyle: { color: '#494949' } }, vAxis: { title: 'questions that day', minValue: 0, textStyle: { color: '#494949' } } }));
+      draw('ScatterChart', scDiv, d6, baseOptions({ legend: 'none', pointSize: 5, colors: ['#006633'], dataOpacity: 0.7,
+        trendlines: { 0: { color: '#d6a800', lineWidth: 4, opacity: 1 } },
+        chartArea: { left: 64, top: 14, right: 20, bottom: 56 },
+        hAxis: hAxis({ title: 'visitors that day', titleTextStyle: { color: '#494949', italic: false, fontSize: 11 }, viewWindow: { min: 0 }, gridlines: { color: '#e5e5e5', count: 5 } }),
+        vAxis: vAxis({ title: 'questions that day', titleTextStyle: { color: '#494949', italic: false, fontSize: 11 } }) }));
     }
 
     /* 7. hour of day (taps only) */
     var hours = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     campuses.forEach(function (c) { var h = state.data.hours[c]; if (h) h.forEach(function (v, i) { hours[i] += v; }); });
-    var hDiv = card('Hour of day', 'From real taps only: the typed-in history carries no clock time, so this fills in as staff use the tap page.');
+    var hDiv = chartDiv(card('Hour of day', 'From real taps only: the typed-in history carries no clock time, so this fills in as staff use the tap page.'));
     if (!C.sum(hours)) emptyInto(hDiv, 'No timed taps yet.');
     else draw('ColumnChart', hDiv, [['Hour', 'Questions']].concat(hours.map(function (v, i) { return [(i % 12 || 12) + (i < 12 ? ' am' : ' pm'), v]; }).slice(6, 22)), baseOptions({ legend: 'none', colors: ['#006633'] }));
 
-    /* 8. category mix per campus */
+    /* 8. kind of help by campus */
     var d8 = [['Campus'].concat(cats)].concat(campuses.map(function (c) { var t = tot.byCampus[c]; return [c].concat(cats.map(function (k) { return t && t.byCat[k] ? t.byCat[k] : 0; })); }));
-    draw('BarChart', card('Kind of help, by campus', 'Share of each kind of question; the bars add up to 100% per campus.'), d8,
-      baseOptions({ isStacked: 'percent', chartArea: { left: 110, top: 12, right: 24, bottom: 48, width: '100%', height: '100%' }, hAxis: { format: 'percent', textStyle: { color: '#494949', fontSize: 11 } }, vAxis: { textStyle: { color: '#212721', fontSize: 12 } }, colors: CAT_PALETTE }));
+    draw('BarChart', chartDiv(card('Kind of help, by campus', 'Share of each kind of question; the bars add up to 100% per campus.')), d8,
+      baseOptions({ isStacked: 'percent', colors: CAT_COLORS, chartArea: { left: 110, top: 60, right: 16, bottom: 30 },
+        hAxis: hAxis({ format: 'percent', gridlines: { color: '#e5e5e5', count: 5 } }), vAxis: { textStyle: { color: '#212721', fontSize: 12, fontName: 'Raleway' } }, bar: { groupWidth: '62%' } }));
 
     /* 9. remote share by month */
-    var d9 = [['Month', 'Remote share %']].concat(months.map(function (m) { return [C.prettyMonth(m.key), m.q ? Math.round(m.rm / m.q * 1000) / 10 : 0]; }));
-    draw('LineChart', card('Remote share by month', 'Percent of questions that came by phone, email or chat rather than at the desk.'), d9, baseOptions({ legend: 'none', lineWidth: 3, pointSize: 5, colors: ['#b58f00'], vAxis: { minValue: 0, maxValue: 100, textStyle: { color: '#494949' } } }));
+    var d9 = [['Month', 'Remote share']].concat(months.map(function (m) { return [C.prettyMonth(m.key), m.q ? Math.round(m.rm / m.q * 1000) / 10 : 0]; }));
+    draw('LineChart', chartDiv(card('Remote share by month', 'Percent of questions that came by phone, email or chat rather than at the desk.')), d9,
+      baseOptions({ legend: 'none', lineWidth: 3, pointSize: 5, colors: ['#d6a800'], hAxis: hAxis({ showTextEvery: everyNth(months.length) }), vAxis: vAxis({ format: '#\'%\'', viewWindow: { min: 0, max: 100 } }) }));
 
     /* 10. gate count by time block */
-    var d10 = [['Campus'].concat(state.data.blocks)].concat(campuses.map(function (c) {
+    var d10 = [['Campus'].concat(blocks)].concat(campuses.map(function (c) {
       var perBlock = {};
       days.forEach(function (d) { if (d.c === c) for (var b in d.g) if (Object.prototype.hasOwnProperty.call(d.g, b)) perBlock[b] = (perBlock[b] || 0) + d.g[b]; });
-      return [c].concat(state.data.blocks.map(function (b) { return perBlock[b] || 0; }));
+      return [c].concat(blocks.map(function (b) { return perBlock[b] || 0; }));
     }));
-    draw('ColumnChart', card('When visitors come', 'Gate count by time block.'), d10, baseOptions({ isStacked: true, colors: ['#006633', '#009639', '#b58f00'] }));
+    draw('ColumnChart', chartDiv(card('When visitors come', 'Gate count by time block, stacked.')), d10, baseOptions({ isStacked: true, colors: BLOCK_COLORS }));
 
     /* 11. top days table */
     var top = C.topDays(days, 10);
-    var tDiv = card('Ten busiest days', 'By questions answered.', true);
-    tDiv.className = '';
-    tDiv.style.height = 'auto';
+    var tCard = card('Ten busiest days', 'By questions answered.', true);
+    var tDiv = document.createElement('div');
+    tCard.appendChild(tDiv);
     if (!top.length || !top[0].q) emptyInto(tDiv, 'No questions recorded in this period.');
     else {
       var table = document.createElement('table');
@@ -437,7 +476,7 @@ var CONFIG = <?!= configJson ?>;
     var out = [];
     var campuses = state.campus === 'all' ? state.data.campuses : [state.campus];
     if (!days.length) { el('calloutList').innerHTML = '<li>Nothing recorded in this period.</li>'; return; }
-    if (sc.r !== null && sc.n >= 10) out.push('Visitors and questions: <b>' + (Math.round(sc.r * 100) / 100) + '</b> on a scale from -1 to 1, ' + C.describeR(sc.r, sc.n) + ', over ' + sc.n + ' days.');
+    if (sc.r !== null && sc.n >= 10) out.push('Visitors and questions: <b>' + C.round2(sc.r) + '</b> on a scale from -1 to 1, ' + C.describeR(sc.r, sc.n) + ', over ' + sc.n + ' days.');
     var ratio = C.per100(tot.q, tot.g);
     if (ratio !== null) out.push('About <b>' + fmt1(ratio) + '</b> questions for every 100 people through the gate.');
     if (state.campus === 'all') {
@@ -458,8 +497,8 @@ var CONFIG = <?!= configJson ?>;
       var r1 = firstHalf.reduce(function (s, m) { return s + m.rm; }, 0), r2 = secondHalf.reduce(function (s, m) { return s + m.rm; }, 0);
       if (s1 && s2) out.push('Remote share moved from <b>' + Math.round(r1 / s1 * 100) + '%</b> in the first half of this period to <b>' + Math.round(r2 / s2 * 100) + '%</b> in the second half.');
     }
-    var blocks = state.data.blocks.map(function (b) { return { b: b, g: tot.byBlock[b] || 0 }; }).sort(function (a, b) { return b.g - a.g; });
-    if (blocks.length && tot.g) out.push('Most visitors arrive <b>' + blocks[0].b + '</b> (' + Math.round(blocks[0].g / tot.g * 100) + '% of the gate count).');
+    var blk = state.data.blocks.map(function (b) { return { b: b, g: tot.byBlock[b] || 0 }; }).sort(function (a, b) { return b.g - a.g; });
+    if (blk.length && tot.g) out.push('Most visitors arrive <b>' + blk[0].b + '</b> (' + Math.round(blk[0].g / tot.g * 100) + '% of the gate count).');
     el('calloutList').innerHTML = out.length ? out.map(function (s) { return '<li>' + s + '</li>'; }).join('') : '<li>Not enough data yet for findings.</li>';
   }
 

@@ -85,7 +85,8 @@ LimeSurvey export by import/limesurvey_to_history.py, and
 ## Where the numbers go
 
 - **Log** tab: one row per tap with the exact time, campus, category, In person or Remote.
-- **Gate** tab: one row per campus, day and time block. Entering a block again replaces it.
+- **Gate** tab: one row per campus, day and time block, holding the current number. Entering a block again replaces it here, so every total stays right.
+- **Gate history** tab: every gate entry ever made from the page, in order, with the time, who, the number, and the number it replaced. Nothing here is ever overwritten, so a wrong entry and its correction are both on record. Totals never read this tab. A workbook from before this round gets the tab by itself on the first gate entry (or run **setup** again).
 - One tab per campus: the paper weekly sheet, filled in live. Type any date in the yellow cell to see that week.
 - **Summary** tab: this month by campus, by category, and the busiest hours. Type any date in the yellow cell to see that month.
 - **Buttons** tab: the list of buttons. Change a name, the helper text, the order, or set Show to no. The page picks it up within a minute.
@@ -119,5 +120,5 @@ gate rows it removed. Running it again changes nothing more.
 
 - If the wifi drops, taps wait on the device and send themselves when it is back. The top right corner says how many are waiting.
 - The page stops working the day the Google account that deployed it is deleted. Deploy it from an account the library keeps.
-- For a weekly dated copy of the Log and Gate tabs in a Drive folder called "Desk Stats backups", run the function **installWeeklyBackup** once from the editor.
+- For a weekly dated copy of the Log, Gate and Gate history tabs in a Drive folder called "Desk Stats backups", run the function **installWeeklyBackup** once from the editor.
 - The time zone is one word in appsscript.json (America/Chicago). Change it there if the college ever moves.

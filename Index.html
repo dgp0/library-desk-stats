@@ -215,7 +215,7 @@ var CONFIG = <?!= configJson ?>;
 (function () {
   'use strict';
 
-  var PAGE_BUILD = 'DS-2026-09-16-01';
+  var PAGE_BUILD = 'DS-2026-09-16-02';
   var COOLDOWN_MS = 1500;
   var BATCH_MAX = 25;
   var TAB_ID = 'tab-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
@@ -637,7 +637,7 @@ var CONFIG = <?!= configJson ?>;
     state.pad = { block: block, value: '' };
     el('padTitle').textContent = 'Gate count: ' + block;
     var already = state.gate[block];
-    el('padSub').textContent = state.campus + ', ' + prettyDate(now()) + (already !== undefined && already !== null ? '. Already saved: ' + already + '. Saving again replaces it.' : '');
+    el('padSub').textContent = state.campus + ', ' + prettyDate(now()) + (already !== undefined && already !== null ? '. Already saved: ' + already + '. Saving again replaces it, and both stay in the Gate history tab.' : '');
     el('padErr').textContent = '';
     renderPad();
     el('keypad').hidden = false;
@@ -680,7 +680,8 @@ var CONFIG = <?!= configJson ?>;
     renderGate();
     el('keypad').hidden = true;
     state.pad = null;
-    enqueue({ kind: 'gate', id: uuid(), payload: { campus: state.campus, block: block, count: count, date: state.today, device: deviceId() } });
+    var entryId = uuid();
+    enqueue({ kind: 'gate', id: entryId, payload: { campus: state.campus, block: block, count: count, date: state.today, device: deviceId(), entryId: entryId } });
   });
   document.addEventListener('keydown', function (ev) {
     if (!el('recent').hidden && ev.key === 'Escape') { el('recent').hidden = true; return; }

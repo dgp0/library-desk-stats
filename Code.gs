@@ -12,7 +12,7 @@
 
 const APP = {
   name: 'Desk Stats',
-  build: 'DS-2026-09-16-01', /* the pages carry the same stamp; a mismatch is reported on screen */
+  build: 'DS-2026-09-16-02', /* the pages carry the same stamp; a mismatch is reported on screen */
   timeZone: 'America/Chicago',  /* every date in this script is worked out in this zone, never in the project's own clock setting */
   campuses: ['Smyrna', 'Moore County', 'Fayetteville', 'McMinnville'],
   blocks: ['7:30 AM - Noon', 'Noon - 4:30 PM', '4:30 PM - Close'],
@@ -31,6 +31,7 @@ const APP = {
 const SHEETS = {
   log: { name: 'Log', headers: ['When', 'Date', 'Hour', 'Weekday', 'Campus', 'Category', 'Mode', 'Count', 'Recorded by', 'Source', 'Tap id'] },
   gate: { name: 'Gate', headers: ['Date', 'Campus', 'Block', 'Count', 'Recorded by', 'Source', 'When entered'] },
+  gateHistory: { name: 'Gate history', headers: ['When entered', 'Date', 'Campus', 'Block', 'Count', 'Replaced', 'Recorded by', 'Source', 'Entry id'] },
   buttons: { name: 'Buttons', headers: ['Category', 'Helper text', 'Order', 'Show', 'Campus'] },
   campuses: { name: 'Campuses', headers: ['Campus', 'Block 1', 'Block 2', 'Block 3', 'Block 4'] },
 };
@@ -61,6 +62,10 @@ function setup() {
   const gate = ensureSheet_(ss, SHEETS.gate);
   gate.getRange('A:A').setNumberFormat('yyyy-mm-dd');
   gate.getRange('G:G').setNumberFormat('yyyy-mm-dd hh:mm:ss');
+
+  const gateHistory = ensureSheet_(ss, SHEETS.gateHistory);
+  gateHistory.getRange('A:A').setNumberFormat('yyyy-mm-dd hh:mm:ss');
+  gateHistory.getRange('B:B').setNumberFormat('yyyy-mm-dd');
 
   const buttons = ensureSheet_(ss, SHEETS.buttons);
   if (buttons.getLastRow() < 2) {
@@ -557,7 +562,7 @@ function recordTaps(list) {
     const sh = ss.getSheetByName(SHEETS.log.name);
     const now = new Date();
     const today = todayKey_(now);
-    const seen = recentTapIds_(sh, 800);
+    const seen = recentIds_(sh, 11, 800);
     const net = todayNets_(sh, today);
     const rows = [];
     const results = items.map(raw => {
@@ -588,13 +593,13 @@ function recordTaps(list) {
   }
 }
 
-/** The tap ids in the newest rows, so a resend of the same tap is recognised and not written twice. */
-function recentTapIds_(sh, maxRows) {
+/** The ids in one column of the newest rows, so a resend of the same tap or gate entry is recognised and not written twice. */
+function recentIds_(sh, column, maxRows) {
   const seen = {};
   const last = sh.getLastRow();
   if (last < 2) return seen;
   const n = Math.min(last - 1, maxRows);
-  sh.getRange(last - n + 1, 11, n, 1).getValues().forEach(v => {
+  sh.getRange(last - n + 1, column, n, 1).getValues().forEach(v => {
     const id = String(v[0] || '').trim();
     if (id) seen[id] = true;
   });
@@ -637,12 +642,19 @@ function getRecent(campus, limit) {
   return out;
 }
 
+/**
+ * One gate count for a campus, day and time block. The Gate tab keeps one row per block with the
+ * current number (entering it again replaces that row, so every total stays right), and every
+ * entry, first or replacement, is also added to the Gate history tab with the number it replaced;
+ * nothing there is ever overwritten. A resend of an entry already saved changes nothing.
+ */
 function recordGate(entry) {
   const g = entry || {};
   const campus = String(g.campus || '').trim();
   const block = String(g.block || '').trim();
   const count = Number(g.count);
   const dateKey = String(g.date || todayKey_(new Date())).trim();
+  const entryId = String(g.entryId || '').trim();
   const config = getConfig();
   const campusRow = config.campuses.filter(c => c.name === campus)[0];
   if (!campusRow) throw new Error('The campus "' + campus + '" is not in the Campuses tab of the sheet.');
@@ -654,21 +666,28 @@ function recordGate(entry) {
   lock.waitLock(15000);
   try {
     const sh = ss.getSheetByName(SHEETS.gate.name);
+    const history = gateHistorySheet_(ss);
     const now = new Date();
     const who = whoAmI_(g.device);
-    const last = sh.getLastRow();
+    const duplicate = entryId ? recentIds_(history, 9, 300)[entryId] === true : false;
     let replaced = false;
-    if (last >= 2) {
-      const keys = sh.getRange(2, 1, last - 1, 3).getValues();
-      for (let i = keys.length - 1; i >= 0; i -= 1) {
-        if (keyOf_(keys[i][0]) === dateKey && String(keys[i][1]).trim() === campus && String(keys[i][2]).trim() === block) {
-          sh.getRange(i + 2, 4, 1, 4).setValues([[count, who, 'tap', now]]);
-          replaced = true;
-          break;
+    let previous = '';
+    if (!duplicate) {
+      const last = sh.getLastRow();
+      if (last >= 2) {
+        const rows = sh.getRange(2, 1, last - 1, 4).getValues();
+        for (let i = rows.length - 1; i >= 0; i -= 1) {
+          if (keyOf_(rows[i][0]) === dateKey && String(rows[i][1]).trim() === campus && String(rows[i][2]).trim() === block) {
+            previous = Number(rows[i][3]) || 0;
+            sh.getRange(i + 2, 4, 1, 4).setValues([[count, who, 'tap', now]]);
+            replaced = true;
+            break;
+          }
         }
       }
+      if (!replaced) sh.appendRow([dateFromKey_(dateKey), campus, block, count, who, 'tap', now]);
+      history.appendRow([now, dateFromKey_(dateKey), campus, block, count, previous, who, 'tap', entryId]);
     }
-    if (!replaced) sh.appendRow([dateFromKey_(dateKey), campus, block, count, who, 'tap', now]);
     const blocks = {};
     let dayTotal = 0;
     gateRows_(ss).forEach(row => {
@@ -676,10 +695,20 @@ function recordGate(entry) {
       blocks[row.block] = row.count;
       dayTotal += row.count;
     });
-    return { ok: true, replaced: replaced, date: dateKey, blocks: blocks, dayTotal: dayTotal };
+    return { ok: true, replaced: replaced, duplicate: duplicate, date: dateKey, blocks: blocks, dayTotal: dayTotal };
   } finally {
     lock.releaseLock();
   }
+}
+
+/** The Gate history tab, created on the spot in a workbook from before it existed, so nobody has to run setup again. */
+function gateHistorySheet_(ss) {
+  const existing = ss.getSheetByName(SHEETS.gateHistory.name);
+  if (existing) return existing;
+  const sh = ensureSheet_(ss, SHEETS.gateHistory);
+  sh.getRange('A:A').setNumberFormat('yyyy-mm-dd hh:mm:ss');
+  sh.getRange('B:B').setNumberFormat('yyyy-mm-dd');
+  return sh;
 }
 
 /* ------------------------------------------------------------------ */
@@ -690,7 +719,7 @@ function installWeeklyBackup() {
   const already = ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'backupNow');
   if (already) return 'The weekly backup was already switched on.';
   ScriptApp.newTrigger('backupNow').timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(3).create();
-  return 'Weekly backup switched on: every Sunday around 3 am a dated copy of Log and Gate lands in the folder "Desk Stats backups".';
+  return 'Weekly backup switched on: every Sunday around 3 am a dated copy of Log, Gate and Gate history lands in the folder "Desk Stats backups".';
 }
 
 function backupNow() {
@@ -700,8 +729,9 @@ function backupNow() {
     const folders = DriveApp.getFoldersByName(folderName);
     const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
     const copy = SpreadsheetApp.create(APP.name + ' backup ' + todayKey_(new Date()));
-    [SHEETS.log, SHEETS.gate].forEach(spec => {
+    [SHEETS.log, SHEETS.gate, SHEETS.gateHistory].forEach(spec => {
       const src = ss.getSheetByName(spec.name);
+      if (!src) return;
       const values = src.getDataRange().getValues();
       const dst = copy.insertSheet(spec.name);
       if (values.length) dst.getRange(1, 1, values.length, values[0].length).setValues(values);

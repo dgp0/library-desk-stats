@@ -15,7 +15,7 @@ the college's Google accounts.
 |---|---|
 | Code.gs | the brain: builds the sheet, serves the pages, saves every tap |
 | Index.html | the tap page staff use on the iPad or phone |
-| Board.html | the "This week" page: the paper weekly grid, live (same address, add ?view=week) |
+| Board.html | the "This week" page: the paper weekly grid, live, for this week or any earlier one (same address, add ?view=week) |
 | appsscript.json | two settings: the time zone and how the page is shared |
 
 ## Putting it into Google (about five minutes)
@@ -44,12 +44,28 @@ round that:
   deployments** > the pencil icon > under **Version** choose **New
   version** > **Deploy**. The /exec address now serves the new code.
 
+## The This week page
+
+Same address as the tap page with **?view=week** on the end (the This week
+button on the tap page opens it). It opens on the current week and refreshes
+itself every minute. The week label above each campus grid is a button: it
+opens a small window where the arrows step back one week at a time, as far
+back as the first week with anything recorded, and **Show** loads that week.
+A week with nothing recorded still shows, as zeros, and the window says so
+before you load it.
+
 ## The Trends page
 
 Same address as the tap page with **?view=trends** on the end (the Trends button on the tap page opens it). It reads
-the whole sheet once, then every filter (campus, term, last 90 days) works
-instantly. It shows questions per week, visitors per week, questions by
-month and category, campus comparison, the weekday pattern, visitors
+the whole sheet once, then every filter works instantly: campus, a term,
+the last 90 or 30 days, or a custom range. The two date boxes at the end
+of the Period row always show the dates of whatever period is on screen;
+change either one (or press **Custom**) and that exact range is shown, and
+it also appears as a choice in the Compare section. A period of up to
+about six weeks is drawn day by day, up to two years week by week, longer
+month by month, so the date axis never crowds. It shows questions and
+visitors per day, week or month, questions by week or month and category,
+campus comparison, the weekday pattern, visitors
 against questions day by day (with how strongly they move together), the
 hour-of-day pattern (from real taps only), category mix per campus, the
 remote share by month, and gate counts by time block, plus a "what stands
@@ -80,7 +96,7 @@ LimeSurvey export by import/limesurvey_to_history.py, and
 - Each green or yellow block reads "down arrow, count, up arrow". Up adds one. Down takes one off.
 - A take-off is not an erase: it is its own row in the Log tab with Count -1, the time, and who did it. Every total anywhere adds up the Count column, so a -1 row lowers the day's number and the record of it stays.
 - The sheet refuses a take-off that would push that day's count for that campus, kind, and mode below zero, whoever taps and from whichever device. On the page the down arrow goes grey at zero.
-- Each arrow ignores a second tap for five seconds (a grey shade sweeps across it). Only that arrow: a different block, or the other arrow on the same block, still works.
+- Each arrow ignores a second tap for one and a half seconds (a grey shade sweeps across it). Only that arrow: a different block, or the other arrow on the same block, still works.
 - "Last 10 taps" on the tap page lists the newest taps at that campus with time, who, kind, mode and +1 or -1.
 - Never count rows in this sheet. A row is +1, -1, or a typed-in history day's number. Sum the Count column.
 

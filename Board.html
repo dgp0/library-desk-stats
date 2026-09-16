@@ -55,6 +55,17 @@
   tr.gap td { border: 0; height: 10px; background: var(--paper); }
   td.zero { color: var(--gray); }
   .foot { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .week-btn { font-family: var(--mono); font-weight: 700; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; padding: 6px 10px; }
+  .scrim { position: fixed; inset: 0; background: rgba(33, 39, 33, .55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 30; }
+  .dialog { background: var(--paper); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); width: min(460px, 100%); padding: 16px; }
+  .dialog h3 { font-family: var(--slab); margin: 0 0 4px; font-size: 20px; }
+  .dialog .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+  .week-nav { display: grid; grid-template-columns: 56px 1fr 56px; gap: 10px; align-items: stretch; }
+  .week-nav .btn { font-size: 18px; padding: 0; min-height: 56px; }
+  .week-label { border: 3px solid var(--ink); background: var(--yellow-wash); font-family: var(--mono); font-weight: 700; font-size: 15px; text-align: center; padding: 12px 8px; display: flex; align-items: center; justify-content: center; }
+  .week-note { color: var(--muted); font-weight: 700; font-size: 13px; margin: 10px 0 0; min-height: 1.2em; }
+  .dialog-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .dialog-actions span { display: flex; gap: 10px; }
   @media print { .controls, .foot { display: none; } .scroll { box-shadow: none; } }
 </style>
 </head>
@@ -91,13 +102,31 @@
   <div class="controls" id="campusPicker" style="margin-bottom:16px"></div>
   <div class="tiles" id="tiles"></div>
   <div id="boards"></div>
-  <div class="foot">The grid is this week's paper sheet, filled in live: Sunday to Saturday, In person and Remote per category, the in-person total, and the gate count per time block. It refreshes itself every minute.</div>
+  <div class="foot">The grid is one week's paper sheet, filled in live: Sunday to Saturday, In person and Remote per category, the in-person total, and the gate count per time block. It opens on the current week; the week label above each grid picks another. It refreshes itself every minute.</div>
 </main>
+
+<div id="weekPick" class="scrim" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="weekTitle">
+    <h3 id="weekTitle">Pick a week</h3>
+    <div class="sub">Step through the weeks with the arrows (or the left and right arrow keys), then press Show.</div>
+    <div class="week-nav">
+      <button id="weekPrev" class="btn" type="button" aria-label="Earlier week">&#9664;</button>
+      <div class="week-label" id="weekLabel" aria-live="polite"></div>
+      <button id="weekNext" class="btn" type="button" aria-label="Later week">&#9654;</button>
+    </div>
+    <div class="week-note" id="weekNote" aria-live="polite"></div>
+    <div class="dialog-actions">
+      <button id="weekCancel" class="btn" type="button">Cancel</button>
+      <span><button id="weekNow" class="btn" type="button">This week</button><button id="weekShow" class="btn on" type="button">Show</button></span>
+    </div>
+  </div>
+</div>
 <script>
 var CONFIG = <?!= configJson ?>;
 (function () {
   'use strict';
-  var state = { campus: 'all', data: null, busy: false };
+  /* week: the Sunday of the week on screen, or null for the current week; pick: the week shown in the picker window */
+  var state = { campus: 'all', data: null, busy: false, week: null, pick: null };
   function el(id) { return document.getElementById(id); }
   function showBanner(t) { el('banner').textContent = t; el('banner').hidden = false; }
   function hideBanner() { el('banner').hidden = true; }
@@ -107,6 +136,15 @@ var CONFIG = <?!= configJson ?>;
     return months[parseInt(p[1], 10) - 1] + ' ' + parseInt(p[2], 10);
   }
   function timeNow() { var d = new Date(); return (d.getHours() % 12 || 12) + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + (d.getHours() < 12 ? ' am' : ' pm'); }
+  /* Day keys are the text yyyy-mm-dd; stepping a week is plain calendar arithmetic. */
+  function toDate(key) { var p = key.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function toKey(d) { var m = d.getMonth() + 1, day = d.getDate(); return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day; }
+  function addDays(key, n) { var d = toDate(key); d.setDate(d.getDate() + n); return toKey(d); }
+  function prettyWeek(start) {
+    var a = toDate(start), b = toDate(addDays(start, 6));
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[a.getMonth()] + ' ' + a.getDate() + (a.getFullYear() === b.getFullYear() ? '' : ', ' + a.getFullYear()) + ' to ' + months[b.getMonth()] + ' ' + b.getDate() + ', ' + b.getFullYear();
+  }
 
   function renderPicker() {
     var box = el('campusPicker');
@@ -135,9 +173,13 @@ var CONFIG = <?!= configJson ?>;
     box.className = 'board';
     var h = document.createElement('h2');
     h.textContent = b.campus;
-    var k = document.createElement('span');
-    k.className = 'kicker';
-    k.textContent = 'Week of ' + pretty(days[0]) + ' to ' + pretty(days[6]);
+    var k = document.createElement('button');
+    k.type = 'button';
+    k.className = 'btn week-btn';
+    k.textContent = 'Week of ' + prettyWeek(days[0]);
+    k.title = 'Pick a different week';
+    k.setAttribute('aria-haspopup', 'dialog');
+    k.addEventListener('click', openWeekPick);
     h.appendChild(k);
     box.appendChild(h);
     var scroll = document.createElement('div');
@@ -204,10 +246,11 @@ var CONFIG = <?!= configJson ?>;
     google.script.run
       .withSuccessHandler(function (res) {
         state.data = res;
+        state.week = res.weekStart && res.thisWeek && res.weekStart !== res.thisWeek ? res.weekStart : null;
         state.busy = false;
         el('refreshBtn').disabled = false;
         el('refreshBtn').title = '';
-        el('updated').textContent = 'Updated ' + timeNow();
+        el('updated').textContent = (state.week ? 'Showing an earlier week. ' : '') + 'Updated ' + timeNow();
         hideBanner();
         render();
       })
@@ -218,7 +261,54 @@ var CONFIG = <?!= configJson ?>;
         el('updated').textContent = 'Could not refresh';
         showBanner('The This week page could not read the sheet: ' + String(err && err.message ? err.message : err) + '. It will try again in a minute.');
       })
-      .getBoard(state.campus === 'all' ? 'all' : state.campus);
+      .getBoard('all', state.week || '');
+  }
+
+  /* ---------- the week picker: arrows step a week at a time between the first recorded week and this one ---------- */
+  function weekTotalsFor(week) {
+    var wt = state.data.weekTotals || {};
+    var out = { any: false, q: 0, g: 0 };
+    Object.keys(wt).forEach(function (c) {
+      if (state.campus !== 'all' && c !== state.campus) return;
+      var t = wt[c][week];
+      if (t) { out.any = true; out.q += t.q; out.g += t.g; }
+    });
+    return out;
+  }
+  function renderWeekPick() {
+    var d = state.data;
+    var atFirst = state.pick <= d.firstWeek, atLast = state.pick >= d.thisWeek;
+    el('weekLabel').textContent = prettyWeek(state.pick) + (atLast ? ' (this week)' : '');
+    el('weekPrev').disabled = atFirst;
+    el('weekPrev').title = atFirst ? 'Nothing was recorded before the week of ' + prettyWeek(d.firstWeek) : 'Earlier week';
+    el('weekNext').disabled = atLast;
+    el('weekNext').title = atLast ? 'That is the current week; nothing later yet' : 'Later week';
+    el('weekNow').disabled = atLast;
+    el('weekNow').title = atLast ? 'Already on this week' : 'Jump to the current week';
+    var t = weekTotalsFor(state.pick);
+    var scope = state.campus === 'all' ? 'all campuses' : state.campus;
+    el('weekNote').textContent = t.any
+      ? t.q.toLocaleString('en-US') + ' questions and a gate count of ' + t.g.toLocaleString('en-US') + ' recorded that week at ' + scope + '.'
+      : 'Nothing recorded that week at ' + scope + '; the grid will show zeros.';
+  }
+  function openWeekPick() {
+    if (!state.data) return;
+    state.pick = state.data.weekStart;
+    renderWeekPick();
+    el('weekPick').hidden = false;
+    el('weekShow').focus();
+  }
+  function closeWeekPick() { el('weekPick').hidden = true; }
+  function stepWeek(n) {
+    var d = state.data, next = addDays(state.pick, n * 7);
+    if (next < d.firstWeek || next > d.thisWeek) return;
+    state.pick = next;
+    renderWeekPick();
+  }
+  function showPickedWeek() {
+    state.week = state.pick === state.data.thisWeek ? null : state.pick;
+    closeWeekPick();
+    refresh();
   }
 
   if (CONFIG.error) {
@@ -226,11 +316,22 @@ var CONFIG = <?!= configJson ?>;
     el('refreshBtn').disabled = true;
     el('refreshBtn').title = 'Fix the problem in the red box first';
   }
-  var PAGE_BUILD = 'DS-2026-09-11-09';
+  var PAGE_BUILD = 'DS-2026-09-16-01';
   if (!CONFIG.error && CONFIG.build !== PAGE_BUILD) showBanner('This page and Code.gs are from different rounds (page ' + PAGE_BUILD + ', script ' + (CONFIG.build || 'older than the stamps') + '). Paste the current copies of all four files, save each, and publish a new version (or use the test address).');
   if (CONFIG.webAppUrl) { el('dashBtn').href = CONFIG.webAppUrl + '?view=trends'; el('tapBtn').href = CONFIG.webAppUrl; }
   renderPicker();
   el('refreshBtn').addEventListener('click', refresh);
+  el('weekPrev').addEventListener('click', function () { stepWeek(-1); });
+  el('weekNext').addEventListener('click', function () { stepWeek(1); });
+  el('weekNow').addEventListener('click', function () { state.pick = state.data.thisWeek; renderWeekPick(); });
+  el('weekShow').addEventListener('click', showPickedWeek);
+  el('weekCancel').addEventListener('click', closeWeekPick);
+  document.addEventListener('keydown', function (ev) {
+    if (el('weekPick').hidden) return;
+    if (ev.key === 'ArrowLeft') { stepWeek(-1); ev.preventDefault(); }
+    else if (ev.key === 'ArrowRight') { stepWeek(1); ev.preventDefault(); }
+    else if (ev.key === 'Escape') closeWeekPick();
+  });
   refresh();
   setInterval(refresh, 60 * 1000);
 })();

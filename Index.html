@@ -73,7 +73,7 @@
   .arrow.up { border-left: 3px solid var(--ink); }
   .arrow:disabled { cursor: not-allowed; }
   .arrow.off { opacity: .3; }
-  .arrow.cooling::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: rgba(33, 39, 33, .55); animation: sweep 5s linear forwards; }
+  .arrow.cooling::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: rgba(33, 39, 33, .55); animation: sweep 1.5s linear forwards; }
   @keyframes sweep { from { width: 0; } to { width: 100%; } }
   .arrow:focus-visible { outline: 4px solid var(--yellow); outline-offset: -4px; }
   .ctl-yellow .arrow:focus-visible { outline-color: var(--green); }
@@ -215,8 +215,8 @@ var CONFIG = <?!= configJson ?>;
 (function () {
   'use strict';
 
-  var PAGE_BUILD = 'DS-2026-09-11-09';
-  var COOLDOWN_MS = 5000;
+  var PAGE_BUILD = 'DS-2026-09-16-01';
+  var COOLDOWN_MS = 1500;
   var BATCH_MAX = 25;
   var TAB_ID = 'tab-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
   var STORE = { campus: 'deskstats.campus', device: 'deskstats.device', queuePrefix: 'deskstats.queue.v3.', tabPrefix: 'deskstats.tab.' };
@@ -492,9 +492,9 @@ var CONFIG = <?!= configJson ?>;
       var nothing = count <= 0;
       down.disabled = nothing || downCooling;
       down.classList.toggle('off', nothing && !downCooling);
-      down.title = nothing ? 'Nothing to take off today' : (downCooling ? 'Wait five seconds' : '');
+      down.title = nothing ? 'Nothing to take off today' : (downCooling ? 'Wait a moment' : '');
       up.disabled = upCooling;
-      up.title = upCooling ? 'Wait five seconds' : '';
+      up.title = upCooling ? 'Wait a moment' : '';
     }
   }
   function startCooldown(btn, key, dir) {
@@ -713,6 +713,8 @@ var CONFIG = <?!= configJson ?>;
         });
         state.gate = res.gate || {};
         state.queue.forEach(function (it) { if (it.kind === 'gate' && it.payload.campus === campus && it.payload.date === state.today) state.gate[it.payload.block] = it.payload.count; });
+        /* A read that worked proves the sheet is reachable; the warning stays only while a send is still being retried. */
+        if (state.net.failing && !state.queue.some(function (it) { return it.tries; })) { state.net.failing = false; state.net.lastError = ''; setNet(); }
         renderCounts();
         renderGate();
       })

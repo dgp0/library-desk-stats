@@ -12,7 +12,7 @@
 
 const APP = {
   name: 'Desk Stats',
-  build: 'DS-2026-09-11-09', /* the pages carry the same stamp; a mismatch is reported on screen */
+  build: 'DS-2026-09-16-01', /* the pages carry the same stamp; a mismatch is reported on screen */
   timeZone: 'America/Chicago',  /* every date in this script is worked out in this zone, never in the project's own clock setting */
   campuses: ['Smyrna', 'Moore County', 'Fayetteville', 'McMinnville'],
   blocks: ['7:30 AM - Noon', 'Noon - 4:30 PM', '4:30 PM - Close'],
@@ -337,17 +337,43 @@ function getTodayCounts(campusName) {
   return { date: today, campus: campusName, taps: taps, tapIds: tapIds, gate: gate, serverNow: Date.now(), build: APP.build };
 }
 
-/** The current week's paper grid for one campus or for all of them. */
-function getBoard(campusName) {
+/**
+ * One week's paper grid for one campus or for all of them: the current week, unless weekStart
+ * names another (any date inside it). A week before the first recorded day, or after this week,
+ * falls back to this week. Also returns the first and current week and, per campus, each week's
+ * question and gate totals, so a page can step through the weeks without another call.
+ */
+function getBoard(campusName, weekStart) {
   const ss = getWorkbook_();
   const config = getConfig();
   const today = todayKey_(new Date());
-  const weekStart = addDaysKey_(today, -weekdayIndex_(today));
-  const days = [];
-  for (let i = 0; i < 7; i += 1) days.push(addDaysKey_(weekStart, i));
-  const wanted = config.campuses.filter(c => !campusName || campusName === 'all' || c.name === campusName);
+  const thisWeek = addDaysKey_(today, -weekdayIndex_(today));
   const logs = logRows_(ss);
   const gates = gateRows_(ss);
+  const isKey = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || '').trim());
+  let firstDate = '';
+  logs.concat(gates).forEach(row => { if (isKey(row.date) && (!firstDate || row.date < firstDate)) firstDate = row.date; });
+  const firstWeek = firstDate ? addDaysKey_(firstDate, -weekdayIndex_(firstDate)) : thisWeek;
+  let start = thisWeek;
+  if (isKey(weekStart)) {
+    const asked = String(weekStart).trim();
+    const sunday = addDaysKey_(asked, -weekdayIndex_(asked));
+    if (sunday >= firstWeek && sunday <= thisWeek) start = sunday;
+  }
+  const days = [];
+  for (let i = 0; i < 7; i += 1) days.push(addDaysKey_(start, i));
+  const wanted = config.campuses.filter(c => !campusName || campusName === 'all' || c.name === campusName);
+  const weekTotals = {};
+  const bump = (campus, date, q, g) => {
+    if (!campus || !isKey(date)) return;
+    const wk = addDaysKey_(date, -weekdayIndex_(date));
+    if (!weekTotals[campus]) weekTotals[campus] = {};
+    const t = weekTotals[campus][wk] || (weekTotals[campus][wk] = { q: 0, g: 0 });
+    t.q += q;
+    t.g += g;
+  };
+  logs.forEach(row => bump(row.campus, row.date, row.count, 0));
+  gates.forEach(row => bump(row.campus, row.date, 0, row.count));
   const boards = wanted.map(c => {
     const cells = {};
     const inPerson = [0, 0, 0, 0, 0, 0, 0];
@@ -380,7 +406,10 @@ function getBoard(campusName) {
       gate: gate, gateTotals: gateTotals, todayTaps: todayTaps, todayGate: gateTotals[days.indexOf(today)],
     };
   });
-  return { days: days, today: today, weekStart: days[0], boards: boards, categories: config.buttons.map(b => b.category), modes: APP.modes, serverNow: Date.now() };
+  return {
+    days: days, today: today, weekStart: days[0], thisWeek: thisWeek, firstWeek: firstWeek, weekTotals: weekTotals,
+    boards: boards, categories: config.buttons.map(b => b.category), modes: APP.modes, serverNow: Date.now(),
+  };
 }
 
 function logRows_(ss) {

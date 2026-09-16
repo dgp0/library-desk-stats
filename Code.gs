@@ -12,7 +12,7 @@
 
 const APP = {
   name: 'Desk Stats',
-  build: 'DS-2026-09-16-02', /* the pages carry the same stamp; a mismatch is reported on screen */
+  build: 'DS-2026-09-16-03', /* the pages carry the same stamp; a mismatch is reported on screen */
   timeZone: 'America/Chicago',  /* every date in this script is worked out in this zone, never in the project's own clock setting */
   campuses: ['Smyrna', 'Moore County', 'Fayetteville', 'McMinnville'],
   blocks: ['7:30 AM - Noon', 'Noon - 4:30 PM', '4:30 PM - Close'],
@@ -343,77 +343,23 @@ function getTodayCounts(campusName) {
 }
 
 /**
- * One week's paper grid for one campus or for all of them: the current week, unless weekStart
- * names another (any date inside it). A week before the first recorded day, or after this week,
- * falls back to this week. Also returns the first and current week and, per campus, each week's
- * question and gate totals, so a page can step through the weeks without another call.
+ * Everything the This week page needs, in one call: every campus-day since the first recorded one
+ * (questions per kind and mode, gate count per block), so the page can show any week at once without
+ * asking again, plus today, the first and current week, and the campuses, kinds and modes.
  */
-function getBoard(campusName, weekStart) {
+function getBoard() {
   const ss = getWorkbook_();
   const config = getConfig();
+  const grouped = groupDaily_(logRows_(ss), gateRows_(ss));
   const today = todayKey_(new Date());
   const thisWeek = addDaysKey_(today, -weekdayIndex_(today));
-  const logs = logRows_(ss);
-  const gates = gateRows_(ss);
-  const isKey = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || '').trim());
-  let firstDate = '';
-  logs.concat(gates).forEach(row => { if (isKey(row.date) && (!firstDate || row.date < firstDate)) firstDate = row.date; });
-  const firstWeek = firstDate ? addDaysKey_(firstDate, -weekdayIndex_(firstDate)) : thisWeek;
-  let start = thisWeek;
-  if (isKey(weekStart)) {
-    const asked = String(weekStart).trim();
-    const sunday = addDaysKey_(asked, -weekdayIndex_(asked));
-    if (sunday >= firstWeek && sunday <= thisWeek) start = sunday;
-  }
-  const days = [];
-  for (let i = 0; i < 7; i += 1) days.push(addDaysKey_(start, i));
-  const wanted = config.campuses.filter(c => !campusName || campusName === 'all' || c.name === campusName);
-  const weekTotals = {};
-  const bump = (campus, date, q, g) => {
-    if (!campus || !isKey(date)) return;
-    const wk = addDaysKey_(date, -weekdayIndex_(date));
-    if (!weekTotals[campus]) weekTotals[campus] = {};
-    const t = weekTotals[campus][wk] || (weekTotals[campus][wk] = { q: 0, g: 0 });
-    t.q += q;
-    t.g += g;
-  };
-  logs.forEach(row => bump(row.campus, row.date, row.count, 0));
-  gates.forEach(row => bump(row.campus, row.date, 0, row.count));
-  const boards = wanted.map(c => {
-    const cells = {};
-    const inPerson = [0, 0, 0, 0, 0, 0, 0];
-    const all = [0, 0, 0, 0, 0, 0, 0];
-    let todayTaps = 0;
-    logs.forEach(row => {
-      if (row.campus !== c.name) return;
-      const idx = days.indexOf(row.date);
-      if (idx < 0) return;
-      const key = row.category + '|' + row.mode;
-      if (!cells[key]) cells[key] = [0, 0, 0, 0, 0, 0, 0];
-      cells[key][idx] += row.count;
-      all[idx] += row.count;
-      if (row.mode === 'In person') inPerson[idx] += row.count;
-      if (row.date === today) todayTaps += row.count;
-    });
-    const gate = {};
-    c.blocks.forEach(b => { gate[b] = [0, 0, 0, 0, 0, 0, 0]; });
-    const gateTotals = [0, 0, 0, 0, 0, 0, 0];
-    gates.forEach(row => {
-      if (row.campus !== c.name) return;
-      const idx = days.indexOf(row.date);
-      if (idx < 0) return;
-      if (!gate[row.block]) gate[row.block] = [0, 0, 0, 0, 0, 0, 0];
-      gate[row.block][idx] += row.count;
-      gateTotals[idx] += row.count;
-    });
-    return {
-      campus: c.name, blocks: c.blocks, cells: cells, inPerson: inPerson, all: all,
-      gate: gate, gateTotals: gateTotals, todayTaps: todayTaps, todayGate: gateTotals[days.indexOf(today)],
-    };
-  });
+  const isKey = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+  let first = '';
+  grouped.daily.forEach(d => { if (isKey(d.d) && (!first || d.d < first)) first = d.d; });
+  const firstWeek = first ? addDaysKey_(first, -weekdayIndex_(first)) : thisWeek;
   return {
-    days: days, today: today, weekStart: days[0], thisWeek: thisWeek, firstWeek: firstWeek, weekTotals: weekTotals,
-    boards: boards, categories: config.buttons.map(b => b.category), modes: APP.modes, serverNow: Date.now(),
+    daily: grouped.daily, today: today, thisWeek: thisWeek, firstWeek: firstWeek,
+    campuses: config.campuses, categories: config.buttons.map(b => b.category), modes: APP.modes, serverNow: Date.now(),
   };
 }
 
@@ -606,7 +552,7 @@ function recentIds_(sh, column, maxRows) {
   return seen;
 }
 
-/** Today's net count (adds minus take-offs) for every campus, kind and mode, in one read. */
+/** One day's net count (adds minus take-offs, plus corrections) for every campus, kind and mode, in one read. */
 function todayNets_(sh, today) {
   const net = {};
   const last = sh.getLastRow();
@@ -661,6 +607,7 @@ function recordGate(entry) {
   if (campusRow.blocks.indexOf(block) < 0) throw new Error('The time block "' + block + '" is not listed for ' + campus + ' in the Campuses tab. Reload the page.');
   if (!(count >= 0) || Math.floor(count) !== count) throw new Error('The gate count must be a whole number, zero or more.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) throw new Error('Bad date for the gate count: ' + dateKey);
+  if (dateKey > todayKey_(new Date())) throw new Error('That day has not happened yet.');
   const ss = getWorkbook_();
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
@@ -696,6 +643,47 @@ function recordGate(entry) {
       dayTotal += row.count;
     });
     return { ok: true, replaced: replaced, duplicate: duplicate, date: dateKey, blocks: blocks, dayTotal: dayTotal };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Sets one cell of the weekly grid: the questions of one kind and mode at one campus on one day.
+ * Nothing already in the sheet is touched: the difference between the number asked for and the
+ * day's current sum is written as one correction row (Count = the difference, Source = edit, no
+ * clock hour, who made it), so every total still adds up the Count column and the correction is on
+ * record. A resend of the same edit changes nothing.
+ */
+function setLogCell(edit) {
+  const e = edit || {};
+  const campus = String(e.campus || '').trim();
+  const category = String(e.category || '').trim();
+  const mode = String(e.mode || '').trim();
+  const dateKey = String(e.date || '').trim();
+  const wanted = Number(e.count);
+  const editId = String(e.editId || '').trim();
+  const config = getConfig();
+  if (!config.campuses.some(c => c.name === campus)) throw new Error('The campus "' + campus + '" is not in the Campuses tab. Reload the page.');
+  if (!config.buttons.some(b => b.category === category)) throw new Error('The button "' + category + '" is not in the Buttons tab. Reload the page.');
+  if (APP.modes.indexOf(mode) < 0) throw new Error('Unknown mode: ' + mode);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) throw new Error('Bad date for the change: ' + dateKey);
+  if (dateKey > todayKey_(new Date())) throw new Error('That day has not happened yet.');
+  if (!(wanted >= 0) || Math.floor(wanted) !== wanted) throw new Error('The number must be a whole number, zero or more.');
+  const ss = getWorkbook_();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = ss.getSheetByName(SHEETS.log.name);
+    const now = new Date();
+    const key = campus + '|' + category + '|' + mode;
+    const duplicate = editId ? recentIds_(sh, 11, 800)[editId] === true : false;
+    const current = todayNets_(sh, dateKey)[key] || 0;
+    const diff = duplicate ? 0 : wanted - current;
+    if (diff !== 0) {
+      sh.appendRow([now, dateFromKey_(dateKey), '', weekday_(dateFromKey_(dateKey)), campus, category, mode, diff, whoAmI_(e.device), 'edit', editId]);
+    }
+    return { ok: true, duplicate: duplicate, date: dateKey, campus: campus, category: category, mode: mode, count: current + diff, diff: diff };
   } finally {
     lock.releaseLock();
   }
@@ -872,8 +860,15 @@ function todayKey_(d) {
   return Utilities.formatDate(d, APP.timeZone, 'yyyy-MM-dd');
 }
 
+/* Google's date formatter is slow and the tabs hold thousands of date cells but only a few hundred distinct days:
+   each day's key is worked out once per call and remembered. Exact, because the memory is keyed on the cell's own instant. */
+const KEY_CACHE_ = {};
 function keyOf_(cell) {
-  if (cell && typeof cell.getTime === 'function') return Utilities.formatDate(cell, APP.timeZone, 'yyyy-MM-dd');
+  if (cell && typeof cell.getTime === 'function') {
+    const ms = cell.getTime();
+    if (!KEY_CACHE_[ms]) KEY_CACHE_[ms] = Utilities.formatDate(cell, APP.timeZone, 'yyyy-MM-dd');
+    return KEY_CACHE_[ms];
+  }
   const s = String(cell).trim();
   const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) return m[3] + '-' + ('0' + m[1]).slice(-2) + '-' + ('0' + m[2]).slice(-2);

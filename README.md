@@ -47,25 +47,34 @@ round that:
 ## The This week page
 
 Same address as the tap page with **?view=week** on the end (the This week
-button on the tap page opens it). It opens on the current week and refreshes
-itself every minute. The week label above each campus grid is a button: it
-opens a small window where the arrows step back one week at a time, as far
-back as the first week with anything recorded, and **Show** loads that week.
-A week with nothing recorded still shows, as zeros, and the window says so
-before you load it.
+button on the tap page opens it). It reads every recorded day once, then
+opens on the current week. The week label above each campus grid is a
+button: it opens a small window where the arrows step back one week at a
+time, as far back as the first week with anything recorded, and **Show**
+switches at once, with no waiting. A week with nothing recorded still shows,
+as zeros, and the window says so. The page re-reads the sheet every minute;
+the top right corner always says what is going on: Loading the sheet,
+Refreshing, Saving, Up to date, Could not read the sheet, or The last
+change was not saved.
+
+**Edit numbers** (top right) turns on edit mode: every number in the grids
+gets a dashed outline, and clicking one opens a small keypad that shows the
+number as it is now and takes the number it should be. Nothing already in
+the sheet is erased: for a questions cell the sheet works out the
+difference and writes it as one correction row in the Log tab (Count = the
+difference, Source = edit, who made it, no clock hour); for a gate count it
+replaces that block's row and keeps the old number in the Gate history tab.
+Every total then adds up as usual. While a change is being saved the cell is
+striped and the corner says Saving; if the sheet refuses it, a red box says
+why and the grid keeps the sheet's number. Days that have not happened yet
+cannot be changed.
 
 ## The Trends page
 
 Same address as the tap page with **?view=trends** on the end (the Trends button on the tap page opens it). It reads
-the whole sheet once, then every filter works instantly: campus, a term,
-the last 90 or 30 days, or a custom range. The two date boxes at the end
-of the Period row always show the dates of whatever period is on screen;
-change either one (or press **Custom**) and that exact range is shown, and
-it also appears as a choice in the Compare section. A period of up to
-about six weeks is drawn day by day, up to two years week by week, longer
-month by month, so the date axis never crowds. It shows questions and
-visitors per day, week or month, questions by week or month and category,
-campus comparison, the weekday pattern, visitors
+the whole sheet once, then every filter (campus, term, last 90 days) works
+instantly. It shows questions per week, visitors per week, questions by
+month and category, campus comparison, the weekday pattern, visitors
 against questions day by day (with how strongly they move together), the
 hour-of-day pattern (from real taps only), category mix per campus, the
 remote share by month, and gate counts by time block, plus a "what stands
@@ -84,7 +93,7 @@ LimeSurvey export by import/limesurvey_to_history.py, and
 
 ## Where the numbers go
 
-- **Log** tab: one row per tap with the exact time, campus, category, In person or Remote.
+- **Log** tab: one row per tap with the exact time, campus, category, In person or Remote, and one row per correction made on the This week page, holding the difference (Source: edit).
 - **Gate** tab: one row per campus, day and time block, holding the current number. Entering a block again replaces it here, so every total stays right.
 - **Gate history** tab: every gate entry ever made from the page, in order, with the time, who, the number, and the number it replaced. Nothing here is ever overwritten, so a wrong entry and its correction are both on record. Totals never read this tab. A workbook from before this round gets the tab by itself on the first gate entry (or run **setup** again).
 - One tab per campus: the paper weekly sheet, filled in live. Type any date in the yellow cell to see that week.
@@ -99,7 +108,7 @@ LimeSurvey export by import/limesurvey_to_history.py, and
 - The sheet refuses a take-off that would push that day's count for that campus, kind, and mode below zero, whoever taps and from whichever device. On the page the down arrow goes grey at zero.
 - Each arrow ignores a second tap for one and a half seconds (a grey shade sweeps across it). Only that arrow: a different block, or the other arrow on the same block, still works.
 - "Last 10 taps" on the tap page lists the newest taps at that campus with time, who, kind, mode and +1 or -1.
-- Never count rows in this sheet. A row is +1, -1, or a typed-in history day's number. Sum the Count column.
+- Never count rows in this sheet. A row is +1, -1, a typed-in history day's number, or a correction's difference from the This week page. Sum the Count column.
 
 ## If numbers were saved by an earlier round (one-time repair)
 

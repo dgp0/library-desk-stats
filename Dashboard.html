@@ -37,10 +37,6 @@
   .banner { border: 3px solid var(--err); border-left-width: 10px; background: var(--err-wash); padding: 12px 14px; margin: 16px; font-weight: 700; }
   .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
   .controls .label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
-  .controls input[type="date"] { font-family: var(--mono); font-weight: 700; font-size: 12px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); padding: 6px 8px; min-height: 38px; border-radius: 0; box-shadow: var(--shadow-sm); -webkit-appearance: none; appearance: none; }
-  .controls input[type="date"]:focus-visible { outline: 4px solid var(--yellow); outline-offset: 2px; }
-  .controls .to { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
-  .controls .note { color: var(--err); font-weight: 700; font-size: 12px; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 18px 0 22px; }
   .tile { border: 3px solid var(--ink); box-shadow: var(--shadow); padding: 12px 14px; min-height: 108px; }
   .tile .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
@@ -109,14 +105,7 @@
 </script>
 <main class="wrap">
   <div class="controls" id="campusPicker"><span class="label">Campus</span></div>
-  <div class="controls" id="periodPicker">
-    <span class="label">Period</span>
-    <button class="btn" type="button" id="customBtn" aria-pressed="false" title="Show exactly the two dates beside this button">Custom</button>
-    <input type="date" id="fromDate" aria-label="Custom range: first day">
-    <span class="to">to</span>
-    <input type="date" id="toDate" aria-label="Custom range: last day">
-    <span class="note" id="customNote" aria-live="polite"></span>
-  </div>
+  <div class="controls" id="periodPicker"><span class="label">Period</span></div>
   <div class="tiles" id="tiles"></div>
   <div class="callouts" id="callouts"><h2>What stands out</h2><ol id="calloutList"><li>Loading.</li></ol></div>
   <div class="grid" id="cards"></div>
@@ -239,24 +228,11 @@ var DeskStatsCalc = (function () {
   }
   function pctChange(now, before) { if (!before) return null; return (now - before) / before * 100; }
   function per100(q, g) { return g ? q / g * 100 : null; }
-  function prettyRange(from, to) {
-    var a = toDate(from), b = toDate(to);
-    return MONTHS[a.getMonth()] + ' ' + a.getDate() + (a.getFullYear() === b.getFullYear() ? '' : ', ' + a.getFullYear()) + ' to ' + MONTHS[b.getMonth()] + ' ' + b.getDate() + ', ' + b.getFullYear();
-  }
-  /* How finely to slice a period so the date axis stays readable: days for up to about six weeks, weeks for up to two years, months beyond. */
-  function grain(from, to) { var n = daysBetween(from, to) + 1; return n <= 45 ? 'day' : (n <= 730 ? 'week' : 'month'); }
-  function coarser(name) { return name === 'day' ? 'week' : 'month'; }
-  var GRAIN = {
-    day: { name: 'day', title: 'Day', key: function (k) { return k; }, label: prettyShort, date: toDate, format: 'MMM d' },
-    week: { name: 'week', title: 'Week', key: sundayOf, label: prettyShort, date: toDate, format: 'MMM d' },
-    month: { name: 'month', title: 'Month', key: monthOf, label: prettyMonth, date: function (k) { return toDate(k + '-01'); }, format: 'MMM yyyy' },
-  };
   return {
     DAY_NAMES: DAY_NAMES, toDate: toDate, toKey: toKey, addDays: addDays, sundayOf: sundayOf, monthOf: monthOf, daysBetween: daysBetween,
     prettyDay: prettyDay, prettyShort: prettyShort, prettyMonth: prettyMonth, sum: sum, questions: questions, visitors: visitors,
     filter: filter, rollup: rollup, totals: totals, weekdayPattern: weekdayPattern, pearson: pearson, scatter: scatter, round2: round2, describeR: describeR,
     topDays: topDays, terms: terms, previousWindow: previousWindow, pctChange: pctChange, per100: per100,
-    prettyRange: prettyRange, grain: grain, coarser: coarser, GRAIN: GRAIN,
   };
 })();
 </script>
@@ -271,7 +247,7 @@ var CONFIG = <?!= configJson ?>;
   var PAIR = ['#006633', '#d6a800'];
   var BLOCK_COLORS = ['#006633', '#009639', '#d6a800'];
   var CAT_COLORS = ['#006633', '#d6a800', '#212721', '#009639', '#8c8c8c', '#7a5c00', '#c22f1f'];
-  var state = { data: null, campus: 'all', period: { key: 'all', from: null, to: null, label: 'Everything' }, chartsReady: false, busy: false, cmp: null, cmpOptions: [], custom: null };
+  var state = { data: null, campus: 'all', period: { key: 'all', from: null, to: null, label: 'Everything' }, chartsReady: false, busy: false, cmp: null, cmpOptions: [] };
   function el(id) { return document.getElementById(id); }
   function showBanner(t) { el('banner').textContent = t; el('banner').hidden = false; }
   function hideBanner() { el('banner').hidden = true; }
@@ -309,7 +285,7 @@ var CONFIG = <?!= configJson ?>;
       cp.appendChild(b);
     });
     var pp = el('periodPicker');
-    Array.prototype.slice.call(pp.querySelectorAll('button.preset')).forEach(function (b) { pp.removeChild(b); });
+    pp.innerHTML = '<span class="label">Period</span>';
     var first = state.data.daily.length ? state.data.daily[0].d : null;
     var last = state.data.daily.length ? state.data.daily[state.data.daily.length - 1].d : null;
     var today = state.data.today;
@@ -318,7 +294,6 @@ var CONFIG = <?!= configJson ?>;
     options.push({ key: 'last90', label: 'Last 90 days', from: C.addDays(today, -89), to: today });
     options.push({ key: 'last30', label: 'Last 30 days', from: C.addDays(today, -29), to: today });
     state.cmpOptions = options.slice();
-    if (state.custom) state.cmpOptions.push({ key: 'custom', label: 'Custom: ' + C.prettyRange(state.custom.from, state.custom.to), from: state.custom.from, to: state.custom.to });
     C.rollup(state.data.daily, C.monthOf).forEach(function (m) {
       var p = m.key.split('-');
       var lastDay = new Date(+p[0], +p[1], 0).getDate();
@@ -331,33 +306,15 @@ var CONFIG = <?!= configJson ?>;
         : { campusA: 'all', periodA: 'all', campusB: 'all', periodB: 'all' };
     }
     renderCompareControls();
-    var customBtn = el('customBtn');
     options.forEach(function (o) {
       var b = document.createElement('button');
       b.type = 'button';
-      b.className = 'btn preset' + (state.period.key === o.key ? ' on-yellow' : '');
+      b.className = 'btn' + (state.period.key === o.key ? ' on-yellow' : '');
       b.textContent = o.label;
       b.setAttribute('aria-pressed', state.period.key === o.key ? 'true' : 'false');
       b.addEventListener('click', function () { state.period = o; renderPickers(); render(); });
-      pp.insertBefore(b, customBtn);
+      pp.appendChild(b);
     });
-    /* The two date boxes always show the period on screen, so any preset can be nudged into a custom range. */
-    var isCustom = state.period.key === 'custom';
-    customBtn.className = 'btn' + (isCustom ? ' on-yellow' : '');
-    customBtn.setAttribute('aria-pressed', isCustom ? 'true' : 'false');
-    if (!isCustom) { el('fromDate').value = state.period.from || first || ''; el('toDate').value = state.period.to || last || ''; }
-    el('customNote').textContent = '';
-  }
-  function applyCustom() {
-    if (!state.data) return;
-    var from = el('fromDate').value, to = el('toDate').value;
-    var note = el('customNote');
-    if (!from || !to) { note.textContent = 'Pick both dates.'; return; }
-    if (from > to) { note.textContent = 'The first date is after the second. Swap them.'; return; }
-    state.custom = { from: from, to: to };
-    state.period = { key: 'custom', label: C.prettyRange(from, to), from: from, to: to };
-    renderPickers();
-    render();
   }
 
   /* ---------- tiles ---------- */
@@ -438,6 +395,8 @@ var CONFIG = <?!= configJson ?>;
     var chart = new google.visualization[kind](div);
     chart.draw(data, options);
   }
+  var dateCol = { label: 'Week', type: 'date' };
+
   function render() {
     if (!state.data || !state.chartsReady) return;
     var days = C.filter(state.data.daily, state.campus, state.period.from, state.period.to);
@@ -449,42 +408,34 @@ var CONFIG = <?!= configJson ?>;
     el('cards').innerHTML = '';
     jobs = [];
 
-    /* How finely to slice time: days for a short period, weeks for up to two years, months beyond, so the date axis never crowds. */
-    var lo = state.period.from || (days.length ? days[0].d : null);
-    var hi = state.period.to || (days.length ? days[days.length - 1].d : null);
-    var fine = C.GRAIN[lo && hi ? C.grain(lo, hi) : 'week'];
-    var coarse = C.GRAIN[C.coarser(fine.name)];
-    var steps = C.rollup(days, fine.key);
-    var chunks = C.rollup(days, coarse.key);
-    var months = C.rollup(days, C.monthOf);
-
-    /* 1. questions per day, week or month: a real date axis, so Google spaces the labels itself */
-    var dateCol = { label: fine.title, type: 'date' };
+    /* 1. questions per week: a real date axis, so Google spaces the labels itself */
+    var weeks = C.rollup(days, C.sundayOf);
     var d1 = state.campus === 'all'
-      ? [[dateCol].concat(campuses)].concat(steps.map(function (w) { return [fine.date(w.key)].concat(campuses.map(function (c) { return w.byCampus[c] ? w.byCampus[c].q : 0; })); }))
-      : [[dateCol, 'In person', 'Remote']].concat(steps.map(function (w) { return [fine.date(w.key), w.ip, w.rm]; }));
-    var c1 = card('Questions per ' + fine.name, 'Every question answered, ' + fine.name + ' by ' + fine.name + '. Term starts and finals show up as peaks.');
+      ? [[dateCol].concat(campuses)].concat(weeks.map(function (w) { return [C.toDate(w.key)].concat(campuses.map(function (c) { return w.byCampus[c] ? w.byCampus[c].q : 0; })); }))
+      : [[dateCol, 'In person', 'Remote']].concat(weeks.map(function (w) { return [C.toDate(w.key), w.ip, w.rm]; }));
+    var c1 = card('Questions per week', 'Every question answered, week by week. Term starts and finals show up as peaks.');
     legend(c1, state.campus === 'all' ? campuses : ['In person', 'Remote'], state.campus === 'all' ? CAMPUS_COLORS : PAIR);
-    /* The labels are the same thinned dates the column chart uses, so a few points over a short span never get a label every other day. */
-    var ticks = steps.filter(function (s, i) { return i % everyNth(steps.length) === 0; }).map(function (s) { return fine.date(s.key); });
+    /* The labels are the same thinned Sundays the column chart uses, at most eight, so a few points over a short span never get a label every other day. */
+    var ticks = weeks.filter(function (w, i) { return i % everyNth(weeks.length) === 0; }).map(function (w) { return C.toDate(w.key); });
     queueDraw('LineChart', chartDiv(c1), d1,
-      baseOptions({ lineWidth: 3, pointSize: 4, colors: state.campus === 'all' ? CAMPUS_COLORS : PAIR, hAxis: hAxis({ format: fine.format, ticks: ticks }), interpolateNulls: true, chartArea: { left: 56, top: 14, right: 30, bottom: 40 } }));
+      baseOptions({ lineWidth: 3, pointSize: 4, colors: state.campus === 'all' ? CAMPUS_COLORS : PAIR, hAxis: hAxis({ format: 'MMM d', ticks: ticks }), interpolateNulls: true, chartArea: { left: 56, top: 14, right: 30, bottom: 40 } }));
 
-    /* 2. visitors per day, week or month */
+    /* 2. visitors per week */
     var d2 = state.campus === 'all'
-      ? [[fine.title].concat(campuses)].concat(steps.map(function (w) { return [fine.label(w.key)].concat(campuses.map(function (c) { return w.byCampus[c] ? w.byCampus[c].g : 0; })); }))
-      : [[fine.title].concat(blocks)].concat(steps.map(function (w) { return [fine.label(w.key)].concat(blocks.map(function (b) { return w.byBlock[b] || 0; })); }));
-    var c2 = card('Visitors per ' + fine.name, state.campus === 'all' ? 'Gate counts by campus, stacked.' : 'Gate counts by time block, stacked.');
+      ? [['Week'].concat(campuses)].concat(weeks.map(function (w) { return [C.prettyShort(w.key)].concat(campuses.map(function (c) { return w.byCampus[c] ? w.byCampus[c].g : 0; })); }))
+      : [['Week'].concat(blocks)].concat(weeks.map(function (w) { return [C.prettyShort(w.key)].concat(blocks.map(function (b) { return w.byBlock[b] || 0; })); }));
+    var c2 = card('Visitors per week', state.campus === 'all' ? 'Gate counts by campus, stacked.' : 'Gate counts by time block, stacked.');
     legend(c2, state.campus === 'all' ? campuses : blocks, state.campus === 'all' ? CAMPUS_COLORS : BLOCK_COLORS);
     queueDraw('ColumnChart', chartDiv(c2), d2,
-      baseOptions({ isStacked: true, colors: state.campus === 'all' ? CAMPUS_COLORS : BLOCK_COLORS, hAxis: hAxis({ showTextEvery: everyNth(steps.length) }) }));
+      baseOptions({ isStacked: true, colors: state.campus === 'all' ? CAMPUS_COLORS : BLOCK_COLORS, hAxis: hAxis({ showTextEvery: everyNth(weeks.length) }) }));
 
-    /* 3. questions by week or month and kind */
-    var d3 = [[coarse.title].concat(cats)].concat(chunks.map(function (m) { return [coarse.label(m.key)].concat(cats.map(function (c) { return m.byCat[c] || 0; })); }));
-    var c3 = card('Questions by ' + coarse.name + ' and kind', 'What people needed, ' + coarse.name + ' by ' + coarse.name + '.');
+    /* 3. questions by month and kind */
+    var months = C.rollup(days, C.monthOf);
+    var d3 = [['Month'].concat(cats)].concat(months.map(function (m) { return [C.prettyMonth(m.key)].concat(cats.map(function (c) { return m.byCat[c] || 0; })); }));
+    var c3 = card('Questions by month and kind', 'What people needed, month by month.');
     legend(c3, cats, CAT_COLORS);
     queueDraw('ColumnChart', chartDiv(c3), d3,
-      baseOptions({ isStacked: true, colors: CAT_COLORS, hAxis: hAxis({ showTextEvery: everyNth(chunks.length) }) }));
+      baseOptions({ isStacked: true, colors: CAT_COLORS, hAxis: hAxis({ showTextEvery: everyNth(months.length) }) }));
 
     /* 4. campus comparison: two small bar charts, so questions are not crushed beside visitors */
     if (state.campus === 'all') {
@@ -545,10 +496,10 @@ var CONFIG = <?!= configJson ?>;
       baseOptions({ isStacked: 'percent', colors: CAT_COLORS, chartArea: { left: 110, top: 14, right: 16, bottom: 30 },
         hAxis: hAxis({ format: 'percent', gridlines: { color: '#e5e5e5', count: 5 } }), vAxis: { textStyle: { color: '#212721', fontSize: 12, fontName: 'Raleway' } }, bar: { groupWidth: '62%' } }));
 
-    /* 9. remote share by week or month */
-    var d9 = [[coarse.title, 'Remote share']].concat(chunks.map(function (m) { return [coarse.label(m.key), m.q ? Math.round(m.rm / m.q * 1000) / 10 : 0]; }));
-    queueDraw('LineChart', chartDiv(card('Remote share by ' + coarse.name, 'Percent of questions that came by phone, email or chat rather than at the desk.')), d9,
-      baseOptions({ lineWidth: 3, pointSize: 5, colors: ['#d6a800'], hAxis: hAxis({ showTextEvery: everyNth(chunks.length) }), vAxis: vAxis({ format: '#\'%\'', viewWindow: { min: 0, max: 100 } }) }));
+    /* 9. remote share by month */
+    var d9 = [['Month', 'Remote share']].concat(months.map(function (m) { return [C.prettyMonth(m.key), m.q ? Math.round(m.rm / m.q * 1000) / 10 : 0]; }));
+    queueDraw('LineChart', chartDiv(card('Remote share by month', 'Percent of questions that came by phone, email or chat rather than at the desk.')), d9,
+      baseOptions({ lineWidth: 3, pointSize: 5, colors: ['#d6a800'], hAxis: hAxis({ showTextEvery: everyNth(months.length) }), vAxis: vAxis({ format: '#\'%\'', viewWindow: { min: 0, max: 100 } }) }));
 
     /* 10. gate count by time block */
     var d10 = [['Campus'].concat(blocks)].concat(campuses.map(function (c) {
@@ -585,7 +536,7 @@ var CONFIG = <?!= configJson ?>;
 
     jobs.forEach(function (job) { job(); });
     renderCompare();
-    renderCallouts(days, tot, months, wp, sc);
+    renderCallouts(days, tot, weeks, months, wp, sc);
     var first = days.length ? days[0].d : null, last = days.length ? days[days.length - 1].d : null;
     el('foot').textContent = (first ? 'Showing ' + C.prettyDay(first) + ' to ' + C.prettyDay(last) + '. ' : '') + 'History typed in from the old weekly sheets carries a day but no clock time; taps from the new page carry both.';
   }
@@ -684,7 +635,7 @@ var CONFIG = <?!= configJson ?>;
   }
 
   /* ---------- plain-sentence findings ---------- */
-  function renderCallouts(days, tot, months, wp, sc) {
+  function renderCallouts(days, tot, weeks, months, wp, sc) {
     var out = [];
     var campuses = state.campus === 'all' ? state.data.campuses : [state.campus];
     if (!days.length) { el('calloutList').innerHTML = '<li>Nothing recorded in this period.</li>'; return; }
@@ -742,13 +693,10 @@ var CONFIG = <?!= configJson ?>;
     showBanner('The trends page cannot start: ' + CONFIG.error);
     el('refreshBtn').disabled = true;
   }
-  var PAGE_BUILD = 'DS-2026-09-16-02';
+  var PAGE_BUILD = 'DS-2026-09-16-03';
   if (!CONFIG.error && CONFIG.build !== PAGE_BUILD) showBanner('This page and Code.gs are from different rounds (page ' + PAGE_BUILD + ', script ' + (CONFIG.build || 'older than the stamps') + '). Paste the current copies of all four files, save each, and publish a new version (or use the test address).');
   if (CONFIG.webAppUrl) { el('weekBtn').href = CONFIG.webAppUrl + '?view=week'; el('tapBtn').href = CONFIG.webAppUrl; }
   el('refreshBtn').addEventListener('click', load);
-  el('customBtn').addEventListener('click', applyCustom);
-  el('fromDate').addEventListener('change', applyCustom);
-  el('toDate').addEventListener('change', applyCustom);
   window.addEventListener('resize', function () { clearTimeout(window.__rsz); window.__rsz = setTimeout(render, 200); });
   if (window.google && google.charts) {
     google.charts.load('current', { packages: ['corechart'] });

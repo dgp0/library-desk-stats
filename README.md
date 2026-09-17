@@ -57,7 +57,7 @@ the top right corner always says what is going on: Loading the sheet,
 Refreshing, Saving, Up to date, Could not read the sheet, or The last
 change was not saved.
 
-**Edit numbers** (top right) turns on edit mode: every number in the grids
+**Edit numbers** (top right) works once a single campus is chosen (it is greyed out on All campuses, so a number is always changed on one named campus). It turns on edit mode: every number in that grid
 gets a dashed outline, and clicking one opens a small keypad that shows the
 number as it is now and takes the number it should be. Nothing already in
 the sheet is erased: for a questions cell the sheet works out the

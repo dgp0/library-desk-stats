@@ -442,7 +442,7 @@ function importHistory() {
   const ss = getWorkbook_();
   const lines = [
     importHistoryFile_(ss, 'history-log.csv', SHEETS.log, 10, r => ['', dateFromKey_(r[1]), '', r[3], r[4], r[5], r[6], Number(r[7]) || 0, '', r[9], '']),
-    importHistoryFile_(ss, 'history-gate.csv', SHEETS.gate, 5, r => [dateFromKey_(r[0]), r[1], r[2], Number(r[3]) || 0, '', r[5], '']),
+    importHistoryFile_(ss, 'history-gate.csv', SHEETS.gate, 6, r => [dateFromKey_(r[0]), r[1], r[2], Number(r[3]) || 0, '', r[5], '']),
   ];
   CacheService.getScriptCache().remove('config');
   Logger.log(lines.join('\n'));

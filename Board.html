@@ -26,7 +26,7 @@
   .masthead { border-top: 8px solid var(--yellow); border-bottom: 10px solid var(--ink); padding: 12px 16px 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .wordmark { font-family: var(--slab); font-weight: 700; font-size: 28px; letter-spacing: -0.02em; line-height: 1; margin: 0; }
   .kicker { font-family: var(--mono); font-weight: 700; font-size: 10.5px; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
-  .btn { border: 3px solid var(--ink); background: var(--paper); color: var(--ink); font-weight: 800; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 14px; box-shadow: var(--shadow-sm); transition: transform .05s, box-shadow .05s; }
+  .btn { border: 3px solid var(--ink); background: var(--paper); color: var(--ink); font-weight: 800; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 14px; box-shadow: var(--shadow-sm); transition: transform .05s, box-shadow .05s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
   .btn:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow); }
   .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
   .btn.on { background: var(--green); color: #fff; }
@@ -63,8 +63,9 @@
   tr.gap td { border: 0; height: 10px; background: var(--paper); }
   td.zero { color: var(--gray); }
   /* Edit mode: a dashed outline on every number that can be changed; stripes while its change is being saved. */
-  td.editable { outline: 2px dashed var(--green); outline-offset: -3px; cursor: pointer; }
+  td.editable { outline: 2px dashed var(--green); outline-offset: -3px; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
   td.editable:hover, td.editable:focus-visible { background: var(--green-wash); color: var(--ink); }
+  td.editable:active { background: var(--green); color: #fff; }
   td.future { cursor: not-allowed; }
   td.saving { background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(33, 39, 33, .14) 4px, rgba(33, 39, 33, .14) 8px); color: var(--muted); }
   .loading { border: 3px dashed var(--gray); padding: 28px; color: var(--muted); font-weight: 700; text-align: center; font-size: 16px; }
@@ -237,12 +238,14 @@ var CONFIG = <?!= configJson ?>;
     state.loading = true;
     setStatus();
     run.withSuccessHandler(function (res) {
+      var before = state.data ? shownSlice(state.data) : null;
       state.loading = false;
       state.failing = false;
       state.data = res;
       state.updatedAt = Date.now();
       if (state.week && (state.week < res.firstWeek || state.week > res.thisWeek)) state.week = null;
-      render();
+      /* A background re-read redraws the grid only when something on screen actually changed, so a tap never lands on a grid being rebuilt. */
+      if (before === null || before !== shownSlice(res)) render();
       setStatus();
     }).withFailureHandler(function (err) {
       state.loading = false;
@@ -251,6 +254,14 @@ var CONFIG = <?!= configJson ?>;
       showBanner('The This week page could not read the sheet: ' + sentence(err && err.message ? err.message : err) + ' It will try again in a minute.');
       setStatus();
     }).getBoard();
+  }
+
+  /* The part of the day-by-day data that is on screen: the shown week and today (for the tiles), for the shown campuses. */
+  function shownSlice(data) {
+    var days = weekDays(state.week || data.thisWeek);
+    return JSON.stringify([data.today, data.thisWeek, data.daily.filter(function (d) {
+      return (state.campus === 'all' || d.c === state.campus) && (days.indexOf(d.d) >= 0 || d.d === data.today);
+    })]);
   }
 
   /* ---------- one week's grid, worked out on the page from the day-by-day data ---------- */
@@ -297,6 +308,7 @@ var CONFIG = <?!= configJson ?>;
           td.tabIndex = 0;
           td.setAttribute('role', 'button');
           td.addEventListener('click', function () { openEdit(info, value); });
+          td.addEventListener('touchstart', function () { /* lets the pressed look show on iPads */ }, { passive: true });
           td.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openEdit(info, value); } });
         }
       }

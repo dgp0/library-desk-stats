@@ -6,13 +6,14 @@
 <title>Desk Stats: this week</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;700;800&family=Roboto+Slab:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;700;800&family=Roboto+Slab:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
   :root {
     --paper: #ffffff; --ink: #212721; --muted: #494949; --gray: #bbbcbc;
     --green: #006633; --green-dark: #00492a; --green-wash: rgba(0, 102, 51, .10);
     --yellow: #ffe100; --yellow-wash: rgba(255, 225, 0, .30);
     --err: #c22f1f; --err-wash: rgba(194, 47, 31, .10);
+    --stripes: repeating-linear-gradient(45deg, #fff, #fff 4px, rgba(33, 39, 33, .16) 4px, rgba(33, 39, 33, .16) 8px);
     --sans: "Raleway", "Helvetica Neue", Helvetica, Arial, sans-serif;
     --slab: "Roboto Slab", Rockwell, Georgia, serif;
     --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -20,13 +21,13 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-weight: 500; font-size: 14px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
-  button { font-family: var(--sans); color: var(--ink); border-radius: 0; cursor: pointer; }
+  button { font-family: var(--sans); color: var(--ink); border-radius: 0; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
   button:focus-visible { outline: 4px solid var(--yellow); outline-offset: 2px; }
   [hidden] { display: none !important; }
   .masthead { border-top: 8px solid var(--yellow); border-bottom: 10px solid var(--ink); padding: 12px 16px 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .wordmark { font-family: var(--slab); font-weight: 700; font-size: 28px; letter-spacing: -0.02em; line-height: 1; margin: 0; }
   .kicker { font-family: var(--mono); font-weight: 700; font-size: 10.5px; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
-  .btn { border: 3px solid var(--ink); background: var(--paper); color: var(--ink); font-weight: 800; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 14px; box-shadow: var(--shadow-sm); transition: transform .05s, box-shadow .05s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  .btn { border: 3px solid var(--ink); background: var(--paper); color: var(--ink); font-weight: 800; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 14px; box-shadow: var(--shadow-sm); transition: transform .05s, box-shadow .05s; }
   .btn:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow); }
   .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
   .btn.on { background: var(--green); color: #fff; }
@@ -41,7 +42,7 @@
   .wrap { max-width: 1400px; margin: 0 auto; padding: 16px; }
   .banner { border: 3px solid var(--err); border-left-width: 10px; background: var(--err-wash); padding: 12px 14px; margin: 16px; font-weight: 700; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
   .banner button { flex: none; }
-  .editnote { border: 3px solid var(--green); border-left-width: 10px; background: var(--green-wash); padding: 10px 14px; margin-bottom: 16px; font-weight: 700; }
+  .editnote { border: 3px solid var(--ink); border-left-width: 10px; background: var(--yellow); padding: 10px 14px; margin-bottom: 16px; font-family: var(--mono); font-weight: 700; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
   .tile { border: 3px solid var(--ink); box-shadow: var(--shadow); padding: 12px 14px; }
   .tile .name { font-weight: 800; font-size: 15px; }
@@ -62,18 +63,37 @@
   tr.total td { font-weight: 800; border-top: 3px solid var(--ink); background: var(--green-wash); }
   tr.gap td { border: 0; height: 10px; background: var(--paper); }
   td.zero { color: var(--gray); }
-  /* Edit mode: a dashed outline on every number that can be changed; stripes while its change is being saved. */
-  td.editable { outline: 2px dashed var(--green); outline-offset: -3px; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
-  td.editable:hover, td.editable:focus-visible { background: var(--green-wash); color: var(--ink); }
-  td.editable:active { background: var(--green); color: #fff; }
-  td.future { cursor: not-allowed; }
-  td.saving { background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(33, 39, 33, .14) 4px, rgba(33, 39, 33, .14) 8px); color: var(--muted); }
+  /* Edit mode looks like the tap page: green and yellow blocks with arrows for questions, raised buttons for gate counts. */
+  .board.editing .scroll { border-color: var(--green); }
+  .board.editing th { background: var(--green); }
+  .board.editing th.today { background: var(--ink); }
+  td.edit { padding: 3px 4px; }
+  td.future { color: var(--gray); cursor: not-allowed; }
+  .step { display: inline-grid; grid-template-columns: 26px auto 26px; align-items: stretch; border: 3px solid var(--ink); min-height: 32px; vertical-align: middle; }
+  .step.ip { background: var(--green); color: #fff; }
+  .step.rm { background: var(--yellow); color: var(--ink); }
+  .step button { border: 0; background: rgba(255, 255, 255, .18); color: inherit; font-size: 11px; padding: 0; }
+  .step.rm button { background: rgba(33, 39, 33, .08); }
+  .step button:active { background: rgba(33, 39, 33, .45); }
+  .step button:disabled { opacity: .3; cursor: not-allowed; }
+  .step button:focus-visible { outline: 3px solid var(--yellow); outline-offset: -3px; }
+  .step.rm button:focus-visible { outline-color: var(--green); }
+  .step b { font-family: var(--mono); font-size: 13px; padding: 0 7px; display: flex; align-items: center; justify-content: center; min-width: 30px; }
+  .step.pending { background: var(--stripes); color: var(--ink); }
+  .numbtn { font-family: var(--mono); font-weight: 700; font-size: 14px; min-width: 66px; padding: 6px 10px; border: 3px solid var(--ink); background: #fff; color: var(--ink); box-shadow: 3px 3px 0 var(--ink); text-align: right; }
+  .numbtn::after { content: ' \270E'; font-size: 11px; color: var(--muted); }
+  .numbtn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+  td.saving .numbtn { background: var(--stripes); color: var(--muted); box-shadow: none; }
   .loading { border: 3px dashed var(--gray); padding: 28px; color: var(--muted); font-weight: 700; text-align: center; font-size: 16px; }
   .foot { color: var(--muted); font-size: 12px; margin-top: 8px; }
   .scrim { position: fixed; inset: 0; background: rgba(33, 39, 33, .55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 30; }
   .dialog { background: var(--paper); border: 3px solid var(--ink); box-shadow: var(--shadow-lg); width: min(460px, 100%); padding: 16px; max-height: 92vh; overflow: auto; }
   .dialog h3 { font-family: var(--slab); margin: 0 0 4px; font-size: 20px; }
   .dialog .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+  .loadbox { width: min(400px, 100%); text-align: center; }
+  .bar { height: 14px; border: 3px solid var(--ink); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 40%; background: var(--green); animation: slide 1.1s ease-in-out infinite alternate; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
   .week-nav { display: grid; grid-template-columns: 56px 1fr 56px; gap: 10px; align-items: stretch; }
   .week-nav .btn { font-size: 18px; padding: 0; min-height: 56px; }
   .week-label { border: 3px solid var(--ink); background: var(--yellow-wash); font-family: var(--mono); font-weight: 700; font-size: 15px; text-align: center; padding: 12px 8px; display: flex; align-items: center; justify-content: center; }
@@ -117,15 +137,25 @@
     }
     text.textContent = msg;
     box.hidden = false;
+    var pane = document.getElementById('loadPane');
+    if (pane) pane.hidden = true;
   });
 </script>
 <main class="wrap">
   <div class="controls" id="campusPicker" style="margin-bottom:16px"></div>
-  <div class="editnote" id="editNote" hidden>Edit mode is on: click any number in the grids to change it. Each change is written to the sheet as its own correction row with who made it, and every total follows. Days that have not happened yet cannot be changed.</div>
+  <div class="editnote" id="editNote" hidden></div>
   <div class="tiles" id="tiles"></div>
   <div id="boards"><div class="loading" id="loadingBox">Loading the sheet</div></div>
   <div class="foot">The grid is one week's paper sheet, filled in live: Sunday to Saturday, In person and Remote per category, the in-person total, and the gate count per time block. It opens on the current week; the week label above each grid switches to another at once. It re-reads the sheet every minute, and the corner at the top says what is going on.</div>
 </main>
+
+<div id="loadPane" class="scrim" hidden>
+  <div class="dialog loadbox" role="status" aria-live="polite">
+    <h3 id="loadTitle">Loading the sheet</h3>
+    <div class="sub">Reading every recorded day. This usually takes a few seconds.</div>
+    <div class="bar" aria-hidden="true"><i></i></div>
+  </div>
+</div>
 
 <div id="weekPick" class="scrim" hidden>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="weekTitle">
@@ -146,7 +176,7 @@
 
 <div id="editPad" class="scrim" hidden>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="editTitle">
-    <h3 id="editTitle">Set the number</h3>
+    <h3 id="editTitle">Gate count</h3>
     <div class="sub" id="editSub"></div>
     <div class="display" id="editDisplay" aria-live="polite">0</div>
     <div class="keys" id="editKeys"></div>
@@ -161,14 +191,18 @@
 var CONFIG = <?!= configJson ?>;
 (function () {
   'use strict';
-  var PAGE_BUILD = 'DS-2026-09-16-03';
+  var PAGE_BUILD = 'DS-2026-09-23-01';
   var STORE = { device: 'deskstats.device' };
+  var NUDGE_WAIT_MS = 700; /* arrow presses on one number within this time go to the sheet as one change */
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   /* data: every recorded day, read once; week: the Sunday on screen, or null for the current week; pick: the week in the
-     picker window; loading: a read of the sheet is in flight; pending: the cells whose change is still being saved;
-     edit: the open Set-the-number window; failing: false, or 'read' or 'save' when the last one of those failed. */
-  var state = { campus: 'all', data: null, week: null, pick: null, loading: false, editing: false, pending: {}, edit: null, failing: false, updatedAt: 0 };
+     picker window; loading: a read of the sheet is in flight; adjust: per question cell, arrow presses queued and in flight;
+     saving: gate cells whose keypad change is still being saved; edit: the open keypad; failing: false, or 'read' or 'save'
+     when the last one of those failed. */
+  var state = { campus: 'all', data: null, week: null, pick: null, loading: false, editing: false, adjust: {}, saving: {}, edit: null, failing: false, updatedAt: 0 };
+  /* The grid on screen: for each board, its rows and their boxes, so numbers can be repainted in place without rebuilding anything. */
+  var dom = { sig: '', boards: [], info: {} };
 
   function el(id) { return document.getElementById(id); }
   function showBanner(t) { el('bannerText').textContent = t; el('banner').hidden = false; }
@@ -201,6 +235,8 @@ var CONFIG = <?!= configJson ?>;
   function zeros() { return [0, 0, 0, 0, 0, 0, 0]; }
   function weekDays(start) { var out = []; for (var i = 0; i < 7; i += 1) out.push(addDays(start, i)); return out; }
   function shownWeek() { return state.week || state.data.thisWeek; }
+  function cellKey(info) { return [info.campus, info.date, info.kind, info.category || '', info.mode || '', info.block || ''].join('|'); }
+  function describe(info) { return (info.kind === 'gate' ? 'gate count, ' + info.block : info.category + ', ' + info.mode) + ', ' + prettyDay(info.date) + ' at ' + info.campus; }
 
   /* The script behind this page must have every function the page calls; if not, say which and why. */
   function server(name) {
@@ -211,8 +247,13 @@ var CONFIG = <?!= configJson ?>;
   }
 
   /* ---------- the corner: always says what is going on ---------- */
+  function pendingCount() {
+    var n = Object.keys(state.saving).length;
+    Object.keys(state.adjust).forEach(function (k) { var a = state.adjust[k]; if (a.queued || a.inflight) n += 1; });
+    return n;
+  }
   function setStatus() {
-    var n = Object.keys(state.pending).length;
+    var n = pendingCount();
     var cls, msg;
     if (state.failing) { cls = 'square bad'; msg = state.failing === 'read' ? 'Could not read the sheet' : 'The last change was not saved'; }
     else if (state.loading && !state.data) { cls = 'square busy'; msg = 'Loading the sheet'; }
@@ -228,43 +269,50 @@ var CONFIG = <?!= configJson ?>;
     el('editBtn').className = 'btn' + (state.editing ? ' on' : '');
     el('editBtn').setAttribute('aria-pressed', state.editing ? 'true' : 'false');
     el('editNote').hidden = !state.editing;
+    el('editNote').textContent = 'Editing ' + state.campus + ': the up arrow adds one, the down arrow takes one off, saved as you go. Tap a gate count to type it. Greyed days have not happened yet.';
   }
 
   /* ---------- reading the sheet: every recorded day in one call ---------- */
-  function refresh() {
+  function refresh(manual) {
     if (state.loading || CONFIG.error) return;
     var run;
     try { run = server('getBoard'); } catch (missing) { state.failing = 'read'; showBanner(missing.message); setStatus(); return; }
     state.loading = true;
+    /* The first read, and a press of Refresh now, get a window in the middle of the page; the once-a-minute re-read only shows in the corner. */
+    if (!state.data || manual === true) { el('loadTitle').textContent = state.data ? 'Refreshing' : 'Loading the sheet'; el('loadPane').hidden = false; }
     setStatus();
     run.withSuccessHandler(function (res) {
-      var before = state.data ? shownSlice(state.data) : null;
       state.loading = false;
       state.failing = false;
       state.data = res;
       state.updatedAt = Date.now();
       if (state.week && (state.week < res.firstWeek || state.week > res.thisWeek)) state.week = null;
-      /* A background re-read redraws the grid only when something on screen actually changed, so a tap never lands on a grid being rebuilt. */
-      if (before === null || before !== shownSlice(res)) render();
+      el('loadPane').hidden = true;
+      /* Same week, campus and mode as before: repaint the numbers in place, never rebuild the grid under a finger. */
+      if (dom.sig === signature()) paint(); else render();
       setStatus();
     }).withFailureHandler(function (err) {
       state.loading = false;
       state.failing = 'read';
+      el('loadPane').hidden = true;
       if (!state.data) el('loadingBox').textContent = 'Could not read the sheet. It will try again in a minute.';
       showBanner('The This week page could not read the sheet: ' + sentence(err && err.message ? err.message : err) + ' It will try again in a minute.');
       setStatus();
     }).getBoard();
   }
 
-  /* The part of the day-by-day data that is on screen: the shown week and today (for the tiles), for the shown campuses. */
-  function shownSlice(data) {
-    var days = weekDays(state.week || data.thisWeek);
-    return JSON.stringify([data.today, data.thisWeek, data.daily.filter(function (d) {
-      return (state.campus === 'all' || d.c === state.campus) && (days.indexOf(d.d) >= 0 || d.d === data.today);
-    })]);
-  }
-
   /* ---------- one week's grid, worked out on the page from the day-by-day data ---------- */
+  function signature() { return [shownWeek(), state.campus, state.editing ? 'edit' : 'view'].join('|'); }
+  function sheetValue(info) {
+    var rec = state.data.daily.filter(function (d) { return d.d === info.date && d.c === info.campus; })[0];
+    if (!rec) return 0;
+    if (info.kind === 'gate') return (rec.g && rec.g[info.block]) || 0;
+    var bucket = info.mode === state.data.modes[1] ? rec.rm : rec.ip;
+    return (bucket && bucket[info.category]) || 0;
+  }
+  function pendingDelta(key) { var a = state.adjust[key]; return a ? a.queued + a.inflight : 0; }
+  function shownValue(info) { return sheetValue(info) + pendingDelta(cellKey(info)); }
+  /* The week's numbers for one campus, with arrow presses not yet confirmed by the sheet added in, so the grid never lags a tap. */
   function boardFor(campus, days) {
     var modes = state.data.modes;
     var b = { campus: campus.name, blocks: campus.blocks, cells: {}, inPerson: zeros(), all: zeros(), gate: {}, gateTotals: zeros() };
@@ -289,38 +337,57 @@ var CONFIG = <?!= configJson ?>;
         b.gateTotals[idx] += d.g[blk];
       });
     });
+    Object.keys(state.adjust).forEach(function (key) {
+      var info = dom.info[key], d = pendingDelta(key);
+      if (!info || !d || info.campus !== campus.name || info.kind !== 'log') return;
+      var idx = days.indexOf(info.date);
+      if (idx < 0) return;
+      var rowKey = info.category + '|' + info.mode;
+      if (!b.cells[rowKey]) b.cells[rowKey] = zeros();
+      b.cells[rowKey][idx] += d;
+      b.all[idx] += d;
+      if (info.mode === modes[0]) b.inPerson[idx] += d;
+    });
     return b;
   }
-  function cellKey(info) { return [info.campus, info.date, info.kind, info.category || '', info.mode || '', info.block || ''].join('|'); }
-  function cell(value, isToday, info) {
+  function numberBox(info, isToday) {
     var td = document.createElement('td');
-    td.textContent = String(value);
-    var cls = (isToday ? 'today ' : '') + (value === 0 ? 'zero ' : '');
-    if (info) {
-      var key = cellKey(info);
-      td.setAttribute('data-cell', key);
-      if (state.pending[key]) { cls += 'saving '; td.title = 'Saving this change'; }
-      else if (state.editing) {
-        if (info.date > state.data.today) { cls += 'future '; td.title = 'That day has not happened yet'; }
-        else {
-          cls += 'editable ';
-          td.title = 'Click to change this number';
-          td.tabIndex = 0;
-          td.setAttribute('role', 'button');
-          td.addEventListener('click', function () { openEdit(info, value); });
-          td.addEventListener('touchstart', function () { /* lets the pressed look show on iPads */ }, { passive: true });
-          td.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openEdit(info, value); } });
-        }
-      }
+    if (isToday) td.className = 'today';
+    if (!info) return td;
+    var key = cellKey(info);
+    dom.info[key] = info;
+    td.setAttribute('data-cell', key);
+    if (!state.editing) return td;
+    if (info.date > state.data.today) { td.className += ' future'; td.title = 'That day has not happened yet'; return td; }
+    td.className += ' edit';
+    if (info.kind === 'gate') {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'numbtn';
+      b.setAttribute('data-act', 'gate');
+      b.setAttribute('data-cell', key);
+      b.title = 'Type a new gate count';
+      td.appendChild(b);
+      return td;
     }
-    td.className = cls.trim();
+    var step = document.createElement('span');
+    step.className = 'step ' + (info.mode === state.data.modes[1] ? 'rm' : 'ip');
+    var down = document.createElement('button');
+    down.type = 'button'; down.textContent = '▼'; down.setAttribute('data-act', 'down'); down.setAttribute('data-cell', key);
+    down.setAttribute('aria-label', 'Take one off: ' + describe(info));
+    var num = document.createElement('b');
+    var up = document.createElement('button');
+    up.type = 'button'; up.textContent = '▲'; up.setAttribute('data-act', 'up'); up.setAttribute('data-cell', key);
+    up.setAttribute('aria-label', 'Add one: ' + describe(info));
+    step.appendChild(down); step.appendChild(num); step.appendChild(up);
+    td.appendChild(step);
     return td;
   }
-  function renderBoard(b, days, today, categories, modes) {
+  function renderBoard(campus, days, today, categories, modes) {
     var box = document.createElement('section');
-    box.className = 'board';
+    box.className = 'board' + (state.editing ? ' editing' : '');
     var h = document.createElement('h2');
-    h.textContent = b.campus;
+    h.textContent = campus.name;
     var k = document.createElement('button');
     k.type = 'button';
     k.className = 'btn week-btn';
@@ -341,29 +408,32 @@ var CONFIG = <?!= configJson ?>;
     thead.appendChild(hr);
     table.appendChild(thead);
     var tbody = document.createElement('tbody');
-    var addRow = function (label, mode, values, cls, infoFor) {
+    var rows = [];
+    var addRow = function (label, mode, type, key, cls, infoFor) {
       var tr = document.createElement('tr');
       if (cls) tr.className = cls;
       var l = document.createElement('td'); l.className = 'label'; l.textContent = label; tr.appendChild(l);
       var m = document.createElement('td'); m.className = 'mode'; m.textContent = mode; tr.appendChild(m);
-      var total = 0;
-      values.forEach(function (v, i) { total += v; tr.appendChild(cell(v, days[i] === today, infoFor ? infoFor(days[i]) : null)); });
-      tr.appendChild(cell(total, false, null));
+      var row = { type: type, key: key, tds: [], totalTd: document.createElement('td') };
+      days.forEach(function (date) { var td = numberBox(infoFor ? infoFor(date) : null, date === today); row.tds.push(td); tr.appendChild(td); });
+      tr.appendChild(row.totalTd);
       tbody.appendChild(tr);
+      rows.push(row);
     };
     categories.forEach(function (c) {
       modes.forEach(function (m) {
-        addRow(c, m, b.cells[c + '|' + m] || zeros(), '', function (date) { return { kind: 'log', campus: b.campus, category: c, mode: m, date: date }; });
+        addRow(c, m, 'log', c + '|' + m, '', function (date) { return { kind: 'log', campus: campus.name, category: c, mode: m, date: date }; });
       });
     });
-    addRow('TOTAL (In person questions only)', '', b.inPerson, 'total', null);
-    addRow('TOTAL (all questions)', '', b.all, 'total', null);
+    addRow('TOTAL (In person questions only)', '', 'inPerson', '', 'total', null);
+    addRow('TOTAL (all questions)', '', 'all', '', 'total', null);
     var gap = document.createElement('tr'); gap.className = 'gap'; gap.innerHTML = '<td colspan="10"></td>'; tbody.appendChild(gap);
-    b.blocks.forEach(function (blk) { addRow('Gate Count', blk, b.gate[blk] || zeros(), '', function (date) { return { kind: 'gate', campus: b.campus, block: blk, date: date }; }); });
-    addRow('Gate Count', 'GC Total', b.gateTotals, 'total', null);
+    campus.blocks.forEach(function (blk) { addRow('Gate Count', blk, 'gate', blk, '', function (date) { return { kind: 'gate', campus: campus.name, block: blk, date: date }; }); });
+    addRow('Gate Count', 'GC Total', 'gc', '', 'total', null);
     table.appendChild(tbody);
     scroll.appendChild(table);
     box.appendChild(scroll);
+    dom.boards.push({ campus: campus, rows: rows });
     return box;
   }
   function renderPicker() {
@@ -380,14 +450,28 @@ var CONFIG = <?!= configJson ?>;
       box.appendChild(b);
     });
   }
+  /* Builds the grid's structure; only week, campus and mode changes need this. Numbers come from paint(). */
   function render() {
     var d = state.data;
     if (!d) return;
     var days = weekDays(shownWeek());
     var campuses = d.campuses.filter(function (c) { return state.campus === 'all' || c.name === state.campus; });
+    dom.boards = [];
+    dom.info = {};
+    var box = el('boards');
+    box.innerHTML = '';
+    campuses.forEach(function (c) { box.appendChild(renderBoard(c, days, d.today, d.categories, d.modes)); });
+    dom.sig = signature();
+    paint();
+  }
+  /* Writes every number into the boxes already on screen: after a read, an arrow press, or a confirmed change. */
+  function paint() {
+    var d = state.data;
+    if (!d) return;
+    var days = weekDays(shownWeek());
     var tiles = el('tiles');
     tiles.innerHTML = '';
-    campuses.forEach(function (c) {
+    d.campuses.filter(function (c) { return state.campus === 'all' || c.name === state.campus; }).forEach(function (c) {
       var q = 0, g = 0;
       d.daily.forEach(function (rec) { if (rec.c === c.name && rec.d === d.today) { q += sum(rec.ip) + sum(rec.rm); g += sum(rec.g); } });
       var t = document.createElement('div');
@@ -398,9 +482,42 @@ var CONFIG = <?!= configJson ?>;
       t.querySelectorAll('.num')[1].textContent = String(g);
       tiles.appendChild(t);
     });
-    var box = el('boards');
-    box.innerHTML = '';
-    campuses.forEach(function (c) { box.appendChild(renderBoard(boardFor(c, days), days, d.today, d.categories, d.modes)); });
+    dom.boards.forEach(function (board) {
+      var model = boardFor(board.campus, days);
+      board.rows.forEach(function (row) {
+        var values = row.type === 'log' ? (model.cells[row.key] || zeros())
+          : row.type === 'gate' ? (model.gate[row.key] || zeros())
+          : row.type === 'inPerson' ? model.inPerson : row.type === 'all' ? model.all : model.gateTotals;
+        var total = 0;
+        values.forEach(function (v, i) { total += v; paintBox(row.tds[i], v); });
+        row.totalTd.textContent = String(total);
+        row.totalTd.classList.toggle('zero', total === 0);
+      });
+    });
+  }
+  function paintBox(td, value) {
+    var key = td.getAttribute('data-cell');
+    var step = td.firstChild && td.firstChild.className && td.firstChild.className.indexOf('step') === 0 ? td.firstChild : null;
+    if (step) {
+      step.querySelector('b').textContent = String(value);
+      var busy = pendingDelta(key) !== 0;
+      step.classList.toggle('pending', busy);
+      step.title = busy ? 'Saving this change' : '';
+      step.children[0].disabled = value <= 0;
+      step.children[0].title = value <= 0 ? 'Nothing to take off' : '';
+      return;
+    }
+    var btn = td.querySelector('button.numbtn');
+    if (btn) {
+      btn.textContent = String(value);
+      var saving = !!state.saving[key];
+      td.classList.toggle('saving', saving);
+      btn.disabled = saving;
+      btn.title = saving ? 'Saving this change' : 'Type a new gate count';
+      return;
+    }
+    td.textContent = String(value);
+    td.classList.toggle('zero', value === 0);
   }
 
   /* ---------- the week picker: arrows step a week at a time between the first recorded week and this one; Show is instant ---------- */
@@ -450,11 +567,71 @@ var CONFIG = <?!= configJson ?>;
     setStatus();
   }
 
-  /* ---------- edit mode: one cell at a time, through a keypad; the sheet's answer is the truth ---------- */
-  function openEdit(info, current) {
-    if (!state.editing || !state.data || state.pending[cellKey(info)]) return;
-    state.edit = { info: info, current: current, value: '' };
-    el('editSub').textContent = (info.kind === 'gate' ? 'Gate count, ' + info.block : info.category + ', ' + info.mode) + '. ' + prettyDay(info.date) + ' at ' + info.campus + '. Now ' + current + '.';
+  /* ---------- edit mode, questions: the arrows nudge one number; presses within a moment go up as one change ---------- */
+  function nudge(info, delta) {
+    var key = cellKey(info);
+    if (delta < 0 && shownValue(info) <= 0) return;
+    var a = state.adjust[key] || (state.adjust[key] = { queued: 0, inflight: 0, timer: null });
+    a.queued += delta;
+    clearTimeout(a.timer);
+    a.timer = setTimeout(function () { sendNudge(info); }, NUDGE_WAIT_MS);
+    paint();
+    setStatus();
+  }
+  function sendNudge(info) {
+    var key = cellKey(info), a = state.adjust[key];
+    if (!a || a.inflight || !a.queued) { if (a && !a.inflight && !a.queued) delete state.adjust[key]; return; }
+    var run;
+    try { run = server('setLogCell'); } catch (missing) { delete state.adjust[key]; state.failing = 'save'; showBanner(missing.message); paint(); setStatus(); return; }
+    var delta = a.queued;
+    a.queued = 0;
+    a.inflight = delta;
+    setStatus();
+    run.withSuccessHandler(function (res) {
+      a.inflight = 0;
+      if (!res || res.ok === false) {
+        a.queued = 0;
+        state.failing = 'save';
+        showBanner('The change was not saved (' + describe(info) + '): ' + sentence(res && res.reason ? res.reason : 'the sheet gave no reason') + ' The grid keeps the sheet\'s number.');
+      } else {
+        state.failing = false;
+        applyEdit(info, res.count, null);
+      }
+      paint();
+      setStatus();
+      if (a.queued) sendNudge(info); else delete state.adjust[key];
+    }).withFailureHandler(function (err) {
+      a.inflight = 0;
+      a.queued = 0;
+      delete state.adjust[key];
+      state.failing = 'save';
+      showBanner('The change was not saved (' + describe(info) + '): ' + sentence(err && err.message ? err.message : err) + ' The grid keeps the sheet\'s number.');
+      paint();
+      setStatus();
+    }).setLogCell({ campus: info.campus, category: info.category, mode: info.mode, date: info.date, delta: delta, device: deviceId(), editId: uuid() });
+  }
+  /* The sheet's answer is the truth for that cell: put it into the day-by-day data so every total on the page follows. */
+  function applyEdit(info, count, blocks) {
+    var daily = state.data.daily;
+    var rec = daily.filter(function (d) { return d.d === info.date && d.c === info.campus; })[0];
+    if (!rec) {
+      rec = { d: info.date, c: info.campus, ip: {}, rm: {}, g: {} };
+      daily.push(rec);
+      daily.sort(function (a, b) { return (a.d + '|' + a.c) < (b.d + '|' + b.c) ? -1 : 1; });
+    }
+    if (info.kind === 'gate') {
+      rec.g = rec.g || {};
+      rec.g[info.block] = count;
+      Object.keys(blocks || {}).forEach(function (b) { rec.g[b] = blocks[b]; });
+    } else (info.mode === state.data.modes[1] ? rec.rm : rec.ip)[info.category] = count;
+  }
+
+  /* ---------- edit mode, gate counts: the keypad, one block at a time ---------- */
+  function openEdit(info) {
+    if (!state.editing || !state.data || state.saving[cellKey(info)]) return;
+    state.edit = { info: info, value: '' };
+    var what = describe(info);
+    el('editSub').textContent = what.charAt(0).toUpperCase() + what.slice(1) + '. Now ' + sheetValue(info) + '.';
     el('editErr').textContent = '';
     renderEdit();
     el('editPad').hidden = false;
@@ -475,55 +652,35 @@ var CONFIG = <?!= configJson ?>;
     renderEdit();
   }
   function closeEdit() { el('editPad').hidden = true; state.edit = null; }
-  /* The sheet's answer is the truth for that cell: put it into the day-by-day data so every total on the page follows. */
-  function applyEdit(info, count, blocks) {
-    var daily = state.data.daily;
-    var rec = daily.filter(function (d) { return d.d === info.date && d.c === info.campus; })[0];
-    if (!rec) {
-      rec = { d: info.date, c: info.campus, ip: {}, rm: {}, g: {} };
-      daily.push(rec);
-      daily.sort(function (a, b) { return (a.d + '|' + a.c) < (b.d + '|' + b.c) ? -1 : 1; });
-    }
-    if (info.kind === 'gate') {
-      rec.g = rec.g || {};
-      rec.g[info.block] = count;
-      Object.keys(blocks || {}).forEach(function (b) { rec.g[b] = blocks[b]; });
-    }
-    else (info.mode === state.data.modes[1] ? rec.rm : rec.ip)[info.category] = count;
-  }
   function saveEdit() {
     if (!state.edit || state.edit.value === '') return;
     var count = parseInt(state.edit.value, 10);
     if (!(count >= 0)) { el('editErr').textContent = 'Type a whole number, zero or more.'; return; }
     var info = state.edit.info, key = cellKey(info);
     var run;
-    try { run = server(info.kind === 'gate' ? 'recordGate' : 'setLogCell'); } catch (missing) { el('editErr').textContent = missing.message; return; }
+    try { run = server('recordGate'); } catch (missing) { el('editErr').textContent = missing.message; return; }
     closeEdit();
-    state.pending[key] = true;
-    render();
+    state.saving[key] = true;
+    paint();
     setStatus();
-    var what = (info.kind === 'gate' ? 'gate count, ' + info.block : info.category + ', ' + info.mode) + ', ' + prettyDay(info.date) + ' at ' + info.campus;
-    run = run.withSuccessHandler(function (res) {
-      delete state.pending[key];
+    run.withSuccessHandler(function (res) {
+      delete state.saving[key];
       if (!res || res.ok === false) {
         state.failing = 'save';
-        showBanner('The change was not saved (' + what + '): ' + sentence(res && res.reason ? res.reason : 'the sheet gave no reason') + ' The grid keeps the sheet\'s number.');
+        showBanner('The change was not saved (' + describe(info) + '): ' + sentence(res && res.reason ? res.reason : 'the sheet gave no reason') + ' The grid keeps the sheet\'s number.');
       } else {
         state.failing = false;
-        applyEdit(info, info.kind === 'gate' ? count : res.count, info.kind === 'gate' ? res.blocks : null);
+        applyEdit(info, count, res.blocks);
       }
-      render();
+      paint();
       setStatus();
     }).withFailureHandler(function (err) {
-      delete state.pending[key];
+      delete state.saving[key];
       state.failing = 'save';
-      showBanner('The change was not saved (' + what + '): ' + sentence(err && err.message ? err.message : err) + ' The grid keeps the sheet\'s number.');
-      render();
+      showBanner('The change was not saved (' + describe(info) + '): ' + sentence(err && err.message ? err.message : err) + ' The grid keeps the sheet\'s number.');
+      paint();
       setStatus();
-    });
-    var id = uuid();
-    if (info.kind === 'gate') run.recordGate({ campus: info.campus, block: info.block, count: count, date: info.date, device: deviceId(), entryId: id });
-    else run.setLogCell({ campus: info.campus, category: info.category, mode: info.mode, date: info.date, count: count, device: deviceId(), editId: id });
+    }).recordGate({ campus: info.campus, block: info.block, count: count, date: info.date, device: deviceId(), entryId: uuid() });
   }
   (function buildKeys() {
     var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'];
@@ -548,8 +705,18 @@ var CONFIG = <?!= configJson ?>;
   if (CONFIG.webAppUrl) { el('dashBtn').href = CONFIG.webAppUrl + '?view=trends'; el('tapBtn').href = CONFIG.webAppUrl; }
   renderPicker();
   el('bannerClose').addEventListener('click', hideBanner);
-  el('refreshBtn').addEventListener('click', refresh);
+  el('refreshBtn').addEventListener('click', function () { refresh(true); });
   el('editBtn').addEventListener('click', function () { if (!state.data || state.campus === 'all') return; state.editing = !state.editing; render(); setStatus(); });
+  /* One listener for every arrow and gate button in the grids. */
+  el('boards').addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('button[data-act]') : null;
+    if (!b || b.disabled) return;
+    var info = dom.info[b.getAttribute('data-cell')];
+    if (!info) return;
+    var act = b.getAttribute('data-act');
+    if (act === 'gate') openEdit(info);
+    else nudge(info, act === 'up' ? 1 : -1);
+  });
   el('weekPrev').addEventListener('click', function () { stepWeek(-1); });
   el('weekNext').addEventListener('click', function () { stepWeek(1); });
   el('weekNow').addEventListener('click', function () { state.pick = state.data.thisWeek; renderWeekPick(); });
@@ -573,7 +740,7 @@ var CONFIG = <?!= configJson ?>;
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
   setStatus();
   refresh();
-  setInterval(refresh, 60 * 1000);
+  setInterval(function () { refresh(); }, 60 * 1000);
 })();
 </script>
 </body>

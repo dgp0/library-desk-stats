@@ -12,7 +12,7 @@
 
 const APP = {
   name: 'Desk Stats',
-  build: 'DS-2026-09-16-03', /* the pages carry the same stamp; a mismatch is reported on screen */
+  build: 'DS-2026-09-23-01', /* the pages carry the same stamp; a mismatch is reported on screen */
   timeZone: 'America/Chicago',  /* every date in this script is worked out in this zone, never in the project's own clock setting */
   campuses: ['Smyrna', 'Moore County', 'Fayetteville', 'McMinnville'],
   blocks: ['7:30 AM - Noon', 'Noon - 4:30 PM', '4:30 PM - Close'],
@@ -507,9 +507,9 @@ function recordTaps(list) {
   try {
     const sh = ss.getSheetByName(SHEETS.log.name);
     const now = new Date();
-    const today = todayKey_(now);
     const seen = recentIds_(sh, 11, 800);
-    const net = todayNets_(sh, today);
+    const netsByDay = {};
+    const netsFor = day => { if (!netsByDay[day]) netsByDay[day] = todayNets_(sh, day); return netsByDay[day]; };
     const rows = [];
     const results = items.map(raw => {
       const t = raw || {};
@@ -523,13 +523,16 @@ function recordTaps(list) {
       if (!config.buttons.some(b => b.category === category)) return { tapId: tapId, ok: false, permanent: true, reason: 'The button "' + category + '" is not in the Buttons tab. Reload the page.' };
       if (APP.modes.indexOf(mode) < 0) return { tapId: tapId, ok: false, permanent: true, reason: 'Unknown mode: ' + mode };
       if (seen[tapId]) return { tapId: tapId, ok: true, duplicate: true, delta: delta };
+      const when = tapTime_(t.at, now);
+      const day = todayKey_(when);
+      const net = netsFor(day);
       const key = campus + '|' + category + '|' + mode;
       if (delta === -1 && (net[key] || 0) <= 0) {
-        return { tapId: tapId, ok: false, refused: true, delta: delta, reason: 'Nothing to take off: today\'s count for ' + category + ', ' + mode + ' at ' + campus + ' is already 0 in the sheet.' };
+        return { tapId: tapId, ok: false, refused: true, delta: delta, reason: 'Nothing to take off: the count for ' + category + ', ' + mode + ' at ' + campus + ' on ' + day + ' is already 0 in the sheet.' };
       }
       net[key] = (net[key] || 0) + delta;
       seen[tapId] = true;
-      rows.push([now, dateOnly_(now), hourOf_(now), weekday_(now), campus, category, mode, delta, whoAmI_(t.device), 'tap', tapId]);
+      rows.push([when, dateOnly_(when), hourOf_(when), weekday_(when), campus, category, mode, delta, whoAmI_(t.device), 'tap', tapId]);
       return { tapId: tapId, ok: true, delta: delta };
     });
     if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, SHEETS.log.headers.length).setValues(rows);
@@ -537,6 +540,18 @@ function recordTaps(list) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * The moment of the tap itself, as the device saw it (its clock is aligned to Google's when the page opens), so two
+ * taps that travel in one batch still carry their own times. The save time stands in when the moment is missing or
+ * implausible: more than a week old, or in the future.
+ */
+function tapTime_(at, now) {
+  const ms = Number(at);
+  if (!ms || !isFinite(ms)) return now;
+  if (ms > now.getTime() + 60000 || ms < now.getTime() - 7 * 86400000) return now;
+  return new Date(ms);
 }
 
 /** The ids in one column of the newest rows, so a resend of the same tap or gate entry is recognised and not written twice. */
@@ -649,11 +664,12 @@ function recordGate(entry) {
 }
 
 /**
- * Sets one cell of the weekly grid: the questions of one kind and mode at one campus on one day.
- * Nothing already in the sheet is touched: the difference between the number asked for and the
- * day's current sum is written as one correction row (Count = the difference, Source = edit, no
- * clock hour, who made it), so every total still adds up the Count column and the correction is on
- * record. A resend of the same edit changes nothing.
+ * Changes one cell of the weekly grid: the questions of one kind and mode at one campus on one day.
+ * Either sets it to a number (count) or nudges it up or down by a few (delta, the arrows on the
+ * This week page). Nothing already in the sheet is touched: the change is written as one correction
+ * row (Count = the difference, Source = edit, no clock hour, who made it), so every total still adds
+ * up the Count column and the correction is on record. A nudge that would push the day below zero is
+ * refused. A resend of the same edit changes nothing.
  */
 function setLogCell(edit) {
   const e = edit || {};
@@ -661,7 +677,9 @@ function setLogCell(edit) {
   const category = String(e.category || '').trim();
   const mode = String(e.mode || '').trim();
   const dateKey = String(e.date || '').trim();
-  const wanted = Number(e.count);
+  const nudging = e.delta !== undefined && e.delta !== null && e.delta !== '';
+  const delta = nudging ? Number(e.delta) : 0;
+  const wanted = nudging ? null : Number(e.count);
   const editId = String(e.editId || '').trim();
   const config = getConfig();
   if (!config.campuses.some(c => c.name === campus)) throw new Error('The campus "' + campus + '" is not in the Campuses tab. Reload the page.');
@@ -669,7 +687,9 @@ function setLogCell(edit) {
   if (APP.modes.indexOf(mode) < 0) throw new Error('Unknown mode: ' + mode);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) throw new Error('Bad date for the change: ' + dateKey);
   if (dateKey > todayKey_(new Date())) throw new Error('That day has not happened yet.');
-  if (!(wanted >= 0) || Math.floor(wanted) !== wanted) throw new Error('The number must be a whole number, zero or more.');
+  if (nudging) {
+    if (Math.floor(delta) !== delta || !delta || Math.abs(delta) > 500) throw new Error('A change by arrows must be a whole number of taps, up to 500 either way.');
+  } else if (!(wanted >= 0) || Math.floor(wanted) !== wanted) throw new Error('The number must be a whole number, zero or more.');
   const ss = getWorkbook_();
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -679,7 +699,13 @@ function setLogCell(edit) {
     const key = campus + '|' + category + '|' + mode;
     const duplicate = editId ? recentIds_(sh, 11, 800)[editId] === true : false;
     const current = todayNets_(sh, dateKey)[key] || 0;
-    const diff = duplicate ? 0 : wanted - current;
+    let diff = 0;
+    if (!duplicate) {
+      if (nudging) {
+        if (current + delta < 0) throw new Error('Nothing to take off: ' + category + ', ' + mode + ' at ' + campus + ' on ' + dateKey + ' is already 0 in the sheet.');
+        diff = delta;
+      } else diff = wanted - current;
+    }
     if (diff !== 0) {
       sh.appendRow([now, dateFromKey_(dateKey), '', weekday_(dateFromKey_(dateKey)), campus, category, mode, diff, whoAmI_(e.device), 'edit', editId]);
     }

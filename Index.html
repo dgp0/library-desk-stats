@@ -6,7 +6,7 @@
 <title>Desk Stats</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;700;800&family=Roboto+Slab:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;700;800&family=Roboto+Slab:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
   :root {
     --paper: #ffffff; --ink: #212721; --muted: #494949; --gray: #bbbcbc;
@@ -215,7 +215,7 @@ var CONFIG = <?!= configJson ?>;
 (function () {
   'use strict';
 
-  var PAGE_BUILD = 'DS-2026-09-16-03';
+  var PAGE_BUILD = 'DS-2026-09-23-01';
   var COOLDOWN_MS = 1500;
   var BATCH_MAX = 25;
   var TAB_ID = 'tab-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
@@ -525,7 +525,7 @@ var CONFIG = <?!= configJson ?>;
     state.counts[key] = (state.counts[key] || 0) + delta;
     flashCtl(key);
     startCooldown(btn, key, dir);
-    enqueue({ kind: 'tap', id: tapId, key: key, payload: { campus: state.campus, category: category, mode: mode, delta: delta, tapId: tapId, device: deviceId() } });
+    enqueue({ kind: 'tap', id: tapId, key: key, payload: { campus: state.campus, category: category, mode: mode, delta: delta, tapId: tapId, device: deviceId(), at: now().getTime() } });
   }
 
   /* ---------- the last ten taps at this campus ---------- */

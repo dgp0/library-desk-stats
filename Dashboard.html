@@ -6,7 +6,7 @@
 <title>Desk Stats: trends</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;700;800&family=Roboto+Slab:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;700;800&family=Roboto+Slab:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <script src="https://www.gstatic.com/charts/loader.js"></script>
 <style>
   :root {
@@ -693,7 +693,7 @@ var CONFIG = <?!= configJson ?>;
     showBanner('The trends page cannot start: ' + CONFIG.error);
     el('refreshBtn').disabled = true;
   }
-  var PAGE_BUILD = 'DS-2026-09-16-03';
+  var PAGE_BUILD = 'DS-2026-09-23-01';
   if (!CONFIG.error && CONFIG.build !== PAGE_BUILD) showBanner('This page and Code.gs are from different rounds (page ' + PAGE_BUILD + ', script ' + (CONFIG.build || 'older than the stamps') + '). Paste the current copies of all four files, save each, and publish a new version (or use the test address).');
   if (CONFIG.webAppUrl) { el('weekBtn').href = CONFIG.webAppUrl + '?view=week'; el('tapBtn').href = CONFIG.webAppUrl; }
   el('refreshBtn').addEventListener('click', load);

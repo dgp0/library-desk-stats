@@ -57,17 +57,26 @@ the top right corner always says what is going on: Loading the sheet,
 Refreshing, Saving, Up to date, Could not read the sheet, or The last
 change was not saved.
 
-**Edit numbers** (top right) works once a single campus is chosen (it is greyed out on All campuses, so a number is always changed on one named campus). It turns on edit mode: every number in that grid
-gets a dashed outline, and clicking one opens a small keypad that shows the
-number as it is now and takes the number it should be. Nothing already in
-the sheet is erased: for a questions cell the sheet works out the
-difference and writes it as one correction row in the Log tab (Count = the
-difference, Source = edit, who made it, no clock hour); for a gate count it
-replaces that block's row and keeps the old number in the Gate history tab.
-Every total then adds up as usual. While a change is being saved the cell is
-striped and the corner says Saving; if the sheet refuses it, a red box says
-why and the grid keeps the sheet's number. Days that have not happened yet
-cannot be changed.
+While the page reads the sheet for the first time, and whenever **Refresh
+now** is pressed, a small Loading window sits in the middle of the page
+until the numbers are in; the once-a-minute re-read only says Refreshing in
+the corner and never redraws the grid under your finger.
+
+**Edit numbers** (top right) works once a single campus is chosen (it is
+greyed out on All campuses, so a number is always changed on one named
+campus). Edit mode looks like the tap page: the grid's header turns green,
+a yellow strip names the campus being edited, and every question number
+becomes a block with a down arrow, the number, and an up arrow, green for
+In person and yellow for Remote. The up arrow adds one and the down arrow
+takes one off; presses on the same number within about a second go to the
+sheet as one change, the block is striped until the sheet confirms, and
+every total follows. A gate count becomes a raised button that opens the
+keypad, and saving replaces that block's number (the old one stays in the
+Gate history tab). Nothing already in the sheet is erased: a question change
+is one correction row in the Log tab (Count = the change, up or down,
+Source = edit, who made it, no clock hour). If the sheet refuses a change, a
+red box says why and the grid keeps the sheet's number. Days that have not
+happened yet stay plain and cannot be changed.
 
 ## The Trends page
 
@@ -108,7 +117,7 @@ LimeSurvey export by import/limesurvey_to_history.py, and
 - The sheet refuses a take-off that would push that day's count for that campus, kind, and mode below zero, whoever taps and from whichever device. On the page the down arrow goes grey at zero.
 - Each arrow ignores a second tap for one and a half seconds (a grey shade sweeps across it). Only that arrow: a different block, or the other arrow on the same block, still works.
 - "Last 10 taps" on the tap page lists the newest taps at that campus with time, who, kind, mode and +1 or -1.
-- Never count rows in this sheet. A row is +1, -1, a typed-in history day's number, or a correction's difference from the This week page. Sum the Count column.
+- Never count rows in this sheet. A row is +1, -1, a typed-in history day's number, or a change from the This week page (the difference, up or down). Sum the Count column.
 
 ## If numbers were saved by an earlier round (one-time repair)
 
@@ -120,7 +129,7 @@ gate rows it removed. Running it again changes nothing more.
 
 ## How saving works (so the corner makes sense)
 
-- A tap is written to the device's storage and sent to the sheet at once. Taps made in a burst go up in one call, in order.
+- A tap is written to the device's storage and sent to the sheet at once. Taps made in a burst go up in one call, in order, and each row carries the moment of its own tap (the device's clock, aligned to Google's when the page opened), not the moment the batch reached the sheet.
 - The corner says **Saving N** while a send is in progress, **Connected** when nothing is waiting, and **Cannot reach the sheet** only when a send has actually failed; the red box then shows the sheet's own words, and the page keeps trying by itself.
 - Every minute, and whenever the tab comes back into view, the page re-reads today's counts from the sheet. The sheet is the truth; the page adds only the taps the sheet has not received yet.
 - Each browser tab keeps its own queue. A tab closed with taps still waiting leaves them for the next open tab to send.

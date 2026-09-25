@@ -107,7 +107,8 @@ LimeSurvey export by import/limesurvey_to_history.py, and
 - **Gate history** tab: every gate entry ever made from the page, in order, with the time, who, the number, and the number it replaced. Nothing here is ever overwritten, so a wrong entry and its correction are both on record. Totals never read this tab. A workbook from before this round gets the tab by itself on the first gate entry (or run **setup** again).
 - One tab per campus: the paper weekly sheet, filled in live. Type any date in the yellow cell to see that week.
 - **Summary** tab: this month by campus, by category, and the busiest hours. Type any date in the yellow cell to see that month.
-- **Buttons** tab: the list of buttons. Change a name, the helper text, the order, or set Show to no. The page picks it up within a minute.
+- **Buttons** tab: the list of buttons. Change a name, the helper text, the order, or set Show to no. The pages pick it up within a minute.
+- **Adding a kind of help:** add a row to the Buttons tab (name, helper text, order number, Show yes) and it is on the tap page, This week and Trends within a minute. Then run **setup** once from the editor so each campus's weekly tab and the Summary tab get a row for it; they are rebuilt from the Buttons tab, and setup never touches Log, Gate or Gate history. The starter list in Code.gs (which now includes XR Lab and 3d Printing) is only used to fill an empty Buttons tab, and running setup adds any starter kind an existing Buttons tab lacks, at the end of the list.
 - **Campuses** tab: the campus names and each one's gate time blocks.
 
 ## How counting works (the part that matters for every total)

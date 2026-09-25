@@ -24,6 +24,8 @@ const APP = {
     ['General Ref', 'All questions not in other categories; hours, etc. Under 1 minute.'],
     ['Library Search', 'Performing or instructing a library search. 5 to 15 minutes.'],
     ['Reference & Instruction', 'Reference or library instruction to a single patron. 10 to 20 minutes.'],
+    ['XR Lab', 'Scheduling or handling an XR lab appointment. 1 minute to 1 hour.'],
+    ['3d Printing', 'Consulting on or printing a requested item. 5 to 30 minutes.'],
   ],
   referral: 'Any interaction requiring in-depth research or more than 20 minutes of time: please refer the patron to a subject specialist or librarian.',
 };
@@ -68,9 +70,12 @@ function setup() {
   gateHistory.getRange('B:B').setNumberFormat('yyyy-mm-dd');
 
   const buttons = ensureSheet_(ss, SHEETS.buttons);
+  let added = [];
   if (buttons.getLastRow() < 2) {
     buttons.getRange(2, 1, APP.categories.length, 5)
       .setValues(APP.categories.map((c, i) => [c[0], c[1], i + 1, 'yes', '']));
+  } else {
+    added = addMissingButtons_(buttons);
   }
   buttons.getRange('D2:D200').setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(['yes', 'no'], true).setAllowInvalid(false).build());
@@ -91,8 +96,37 @@ function setup() {
   ss.moveActiveSheet(1);
 
   CacheService.getScriptCache().remove('config');
+  if (added.length) Logger.log('Added to the Buttons tab: ' + added.join(', '));
   Logger.log('Desk Stats workbook: ' + ss.getUrl());
   return ss.getUrl();
+}
+
+/**
+ * Starter kinds of help that the Buttons tab does not have yet go in at the end of its list, so a kind added to
+ * the code reaches an existing workbook by running setup again. A kind already there, under any capitalisation,
+ * is left exactly as it is. Returns the names it added.
+ */
+function addMissingButtons_(sh) {
+  const last = sh.getLastRow();
+  const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, 5).getValues();
+  const have = {};
+  let order = 0;
+  rows.forEach(r => {
+    const name = String(r[0]).trim().toLowerCase();
+    if (name) have[name] = true;
+    order = Math.max(order, Number(r[2]) || 0);
+  });
+  const missing = APP.categories.filter(c => !have[c[0].toLowerCase()]);
+  if (missing.length) sh.getRange(last + 1, 1, missing.length, 5).setValues(missing.map((c, i) => [c[0], c[1], order + i + 1, 'yes', '']));
+  return missing.map(c => c[0]);
+}
+
+/** The Buttons tab as a list, in its Order: every kind of help, shown or not, with its helper text and campus. */
+function buttonRows_(ss) {
+  return readRows_(ss, SHEETS.buttons)
+    .filter(r => String(r[0]).trim())
+    .sort((a, b) => Number(a[2]) - Number(b[2]))
+    .map(r => ({ category: String(r[0]).trim(), help: String(r[1]), campus: String(r[4] || '').trim(), show: String(r[3]).trim().toLowerCase() !== 'no' }));
 }
 
 function ensureSheet_(ss, spec) {
@@ -118,9 +152,10 @@ function buildWeeklySheet_(ss, campus) {
   rows.push(['', '', '=$B$3', '=$B$3+1', '=$B$3+2', '=$B$3+3', '=$B$3+4', '=$B$3+5', '=$B$3+6', '']);
   rows.push(['Category', 'Mode', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'TOTAL']);
   let r = 6;
-  APP.categories.forEach(c => {
+  const kinds = buttonRows_(ss).filter(b => !b.campus || b.campus === campus.name).map(b => b.category);
+  kinds.forEach(c => {
     APP.modes.forEach(m => {
-      const row = [c[0], m];
+      const row = [c, m];
       dayCols.forEach(col => row.push(
         '=SUMIFS(Log!$H:$H,Log!$E:$E,' + q(campus.name) + ',Log!$F:$F,$A' + r + ',Log!$G:$G,$B' + r + ',Log!$B:$B,' + col + '$4)'));
       row.push('=SUM(C' + r + ':I' + r + ')');
@@ -203,9 +238,9 @@ function buildSummarySheet_(ss) {
   const catHeader = r;
   rows.push(['By category (all campuses)', 'In person', 'Remote', 'Total', '', '']);
   r += 1;
-  APP.categories.forEach(c => {
+  buttonRows_(ss).forEach(b => {
     rows.push([
-      c[0],
+      b.category,
       '=SUMIFS(Log!$H:$H,Log!$F:$F,$A' + r + ',Log!$G:$G,B$' + catHeader + inMonth('B', 'Log') + ')',
       '=SUMIFS(Log!$H:$H,Log!$F:$F,$A' + r + ',Log!$G:$G,C$' + catHeader + inMonth('B', 'Log') + ')',
       '=B' + r + '+C' + r,
@@ -295,10 +330,7 @@ function getConfig() {
     return parsed;
   }
   const ss = getWorkbook_();
-  const buttons = readRows_(ss, SHEETS.buttons)
-    .filter(r => String(r[0]).trim() && String(r[3]).trim().toLowerCase() !== 'no')
-    .sort((a, b) => Number(a[2]) - Number(b[2]))
-    .map(r => ({ category: String(r[0]).trim(), help: String(r[1]), campus: String(r[4] || '').trim() }));
+  const buttons = buttonRows_(ss).filter(b => b.show).map(b => ({ category: b.category, help: b.help, campus: b.campus }));
   const config = {
     app: APP.name,
     campuses: readCampuses_(ss),

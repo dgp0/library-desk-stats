@@ -12,7 +12,7 @@
 
 const APP = {
   name: 'Desk Stats',
-  build: 'DS-2026-09-23-01', /* the pages carry the same stamp; a mismatch is reported on screen */
+  build: 'DS-2026-10-02-01', /* the pages carry the same stamp; a mismatch is reported on screen */
   timeZone: 'America/Chicago',  /* every date in this script is worked out in this zone, never in the project's own clock setting */
   campuses: ['Smyrna', 'Moore County', 'Fayetteville', 'McMinnville'],
   blocks: ['7:30 AM - Noon', 'Noon - 4:30 PM', '4:30 PM - Close'],

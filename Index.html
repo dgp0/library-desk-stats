@@ -13,6 +13,7 @@
     --green: #006633; --green-dark: #00492a; --green-bright: #009639; --green-wash: rgba(0, 102, 51, .10);
     --yellow: #ffe100; --yellow-wash: rgba(255, 225, 0, .30);
     --err: #c22f1f; --err-wash: rgba(194, 47, 31, .10);
+    --stripes: repeating-linear-gradient(45deg, #fff, #fff 4px, rgba(33, 39, 33, .16) 4px, rgba(33, 39, 33, .16) 8px);
     --sans: "Raleway", "Helvetica Neue", Helvetica, Arial, sans-serif;
     --slab: "Roboto Slab", Rockwell, Georgia, serif;
     --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -64,6 +65,8 @@
   .ctl-green { background: var(--green); color: #fff; }
   .ctl-yellow { background: var(--yellow); color: var(--ink); }
   .ctl.flash { background: var(--ink) !important; color: #fff !important; }
+  /* A block with a tap the sheet has not confirmed yet is striped grey, as on the This week page. */
+  .ctl.pending { background: var(--stripes); color: var(--ink); }
   .ctl-mid { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px 4px; text-align: center; }
   .ctl-mid .count { font-family: var(--mono); font-size: 32px; line-height: 1; letter-spacing: -0.02em; }
   .ctl-mid .mode { font-weight: 800; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; margin-top: 5px; }
@@ -106,6 +109,10 @@
   .key.word { font-family: var(--sans); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
   .dialog-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
   .inline-err { color: var(--err); font-weight: 700; font-size: 13px; margin-top: 8px; min-height: 1.2em; }
+  .loadbox { width: min(400px, 100%); text-align: center; }
+  .bar { height: 14px; border: 3px solid var(--ink); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 40%; background: var(--green); animation: slide 1.1s ease-in-out infinite alternate; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
   table.plain { border-collapse: collapse; width: 100%; }
   table.plain th, table.plain td { border-bottom: 1px solid var(--ink); padding: 6px 8px; text-align: left; font-size: 13px; vertical-align: top; }
   table.plain th { background: var(--ink); color: #fff; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; }
@@ -151,6 +158,8 @@
     }
     text.textContent = msg;
     box.hidden = false;
+    var pane = document.getElementById('loadPane');
+    if (pane) pane.hidden = true;
   });
 </script>
 
@@ -210,12 +219,20 @@
   </div>
 </div>
 
+<div id="loadPane" class="scrim" hidden>
+  <div class="dialog loadbox" role="status" aria-live="polite">
+    <h3 id="loadTitle">Loading today's counts</h3>
+    <div class="sub" id="loadSub">Reading today's numbers from the sheet. This usually takes a few seconds.</div>
+    <div class="bar" aria-hidden="true"><i></i></div>
+  </div>
+</div>
+
 <script>
 var CONFIG = <?!= configJson ?>;
 (function () {
   'use strict';
 
-  var PAGE_BUILD = 'DS-2026-09-23-01';
+  var PAGE_BUILD = 'DS-2026-10-02-01';
   var COOLDOWN_MS = 1500;
   var BATCH_MAX = 25;
   var TAB_ID = 'tab-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
@@ -308,13 +325,14 @@ var CONFIG = <?!= configJson ?>;
       forget(k);
       forget(STORE.tabPrefix + tab);
     });
-    if (adopted) { persistQueue(); setNet(); flush(); }
+    if (adopted) { persistQueue(); setNet(); renderCounts(); flush(); }
   }
   function enqueue(item) {
     item.at = Date.now();
     state.queue.push(item);
     persistQueue();
     setNet();
+    renderCounts();
     flush();
   }
   function scheduleFlush(ms) {
@@ -345,6 +363,7 @@ var CONFIG = <?!= configJson ?>;
       state.net.lastSavedAt = Date.now();
       if (head.kind === 'tap') applyTapResults(batch, res); else applyGateResult(head, res);
       setNet();
+      renderCounts();
       flush();
     }).withFailureHandler(function (err) {
       state.sending = false;
@@ -415,6 +434,9 @@ var CONFIG = <?!= configJson ?>;
     el('changeCampus').title = '';
     el('campusScreen').hidden = true;
     el('tapScreen').hidden = false;
+    /* Until the sheet's counts for this campus are in, a window in the middle says so instead of showing zeros. */
+    el('loadSub').textContent = 'Reading today\'s numbers for ' + name + ' from the sheet. This usually takes a few seconds.';
+    el('loadPane').hidden = false;
     renderGrid();
     renderGate();
     fetchToday();
@@ -480,11 +502,20 @@ var CONFIG = <?!= configJson ?>;
     el('todayLabel').textContent = prettyDate(now());
   }
   function isCooling(key, dir) { return (state.cooldowns[key + '|' + dir] || 0) > Date.now(); }
+  /* The blocks at this campus holding a tap the sheet has not confirmed yet. */
+  function unsavedKeys() {
+    var out = {};
+    state.queue.forEach(function (it) { if (it.kind === 'tap' && it.payload.campus === state.campus) out[it.key] = true; });
+    return out;
+  }
   function renderCounts() {
     var ctls = document.querySelectorAll('.ctl');
+    var unsaved = unsavedKeys();
     for (var i = 0; i < ctls.length; i += 1) {
       var key = ctls[i].getAttribute('data-key');
       var count = state.counts[key] || 0;
+      ctls[i].classList.toggle('pending', !!unsaved[key]);
+      ctls[i].title = unsaved[key] ? 'Not saved to the sheet yet' : '';
       ctls[i].querySelector('.count').textContent = String(count);
       var down = ctls[i].querySelector('.arrow.down');
       var up = ctls[i].querySelector('.arrow.up');
@@ -698,12 +729,13 @@ var CONFIG = <?!= configJson ?>;
     if (!state.campus || CONFIG.error || fetching) return;
     var campus = state.campus;
     var todayRun;
-    try { todayRun = server('getTodayCounts'); } catch (missing) { noteFailure(missing.message); return; }
+    try { todayRun = server('getTodayCounts'); } catch (missing) { el('loadPane').hidden = true; noteFailure(missing.message); return; }
     fetching = true;
     todayRun
       .withSuccessHandler(function (res) {
         fetching = false;
-        if (campus !== state.campus) return;
+        /* The campus changed while this was reading: read the new one instead. */
+        if (campus !== state.campus) { fetchToday(); return; }
         if (res && res.date && res.date !== state.today) rollDay(res.date);
         var have = {};
         (res.tapIds || []).forEach(function (id) { have[id] = true; });
@@ -718,9 +750,13 @@ var CONFIG = <?!= configJson ?>;
         if (state.net.failing && !state.queue.some(function (it) { return it.tries; })) { state.net.failing = false; state.net.lastError = ''; setNet(); }
         renderCounts();
         renderGate();
+        el('loadPane').hidden = true;
       })
       .withFailureHandler(function (err) {
         fetching = false;
+        if (campus !== state.campus) { fetchToday(); return; }
+        /* The page stays usable without the sheet: taps wait on this device and the corner says so. */
+        el('loadPane').hidden = true;
         noteFailure(String(err && err.message ? err.message : err));
       })
       .getTodayCounts(campus);

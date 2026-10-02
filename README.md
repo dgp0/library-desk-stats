@@ -52,7 +52,9 @@ opens on the current week. The week label above each campus grid is a
 button: it opens a small window where the arrows step back one week at a
 time, as far back as the first week with anything recorded, and **Show**
 switches at once, with no waiting. A week with nothing recorded still shows,
-as zeros, and the window says so. The page re-reads the sheet every minute;
+as zeros, and the window says so. The boxes above the grid add up the whole
+week shown, one per campus: its questions (the grid's TOTAL (all questions)
+row) and its gate count (the GC Total row). The page re-reads the sheet every minute;
 the top right corner always says what is going on: Loading the sheet,
 Refreshing, Saving, Up to date, Could not read the sheet, or The last
 change was not saved.
@@ -82,7 +84,10 @@ happened yet stay plain and cannot be changed.
 
 Same address as the tap page with **?view=trends** on the end (the Trends button on the tap page opens it). It reads
 the whole sheet once, then every filter (campus, term, last 90 days) works
-instantly. It shows questions per week, visitors per week, questions by
+instantly. While it reads the sheet and draws the charts for the first time,
+and whenever **Refresh** is pressed, a small Loading window sits in the
+middle of the page; picking a campus, a period or a comparison never brings
+it up. It shows questions per week, visitors per week, questions by
 month and category, campus comparison, the weekday pattern, visitors
 against questions day by day (with how strongly they move together), the
 hour-of-day pattern (from real taps only), category mix per campus, the
@@ -130,6 +135,8 @@ gate rows it removed. Running it again changes nothing more.
 
 ## How saving works (so the corner makes sense)
 
+- When a campus is chosen, a small Loading window sits in the middle of the tap page until that campus's counts for today are in from the sheet. If the sheet cannot be reached, the window goes away, the corner says so, and taps still work.
+- A green or yellow block holding a tap the sheet has not confirmed yet is striped grey, as on the This week page; it turns back to green or yellow the moment the sheet has it.
 - A tap is written to the device's storage and sent to the sheet at once. Taps made in a burst go up in one call, in order, and each row carries the moment of its own tap (the device's clock, aligned to Google's when the page opened), not the moment the batch reached the sheet.
 - The corner says **Saving N** while a send is in progress, **Connected** when nothing is waiting, and **Cannot reach the sheet** only when a send has actually failed; the red box then shows the sheet's own words, and the page keeps trying by itself.
 - Every minute, and whenever the tab comes back into view, the page re-reads today's counts from the sheet. The sheet is the truth; the page adds only the taps the sheet has not received yet.

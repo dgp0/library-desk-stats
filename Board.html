@@ -47,7 +47,6 @@
   .tile { border: 3px solid var(--ink); box-shadow: var(--shadow); padding: 12px 14px; }
   .tile .name { font-weight: 800; font-size: 15px; }
   .tile .when { font-size: 12px; color: var(--muted); font-weight: 700; margin-top: 2px; }
-  .tile.all { background: var(--green-wash); border-width: 4px; }
   .tile .nums { display: flex; gap: 18px; margin-top: 8px; }
   .tile .num { font-family: var(--mono); font-size: 34px; line-height: 1; }
   .tile .lbl { font-size: 11px; color: var(--muted); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
@@ -148,7 +147,7 @@
   <div class="editnote" id="editNote" hidden></div>
   <div class="tiles" id="tiles"></div>
   <div id="boards"><div class="loading" id="loadingBox">Loading the sheet</div></div>
-  <div class="foot">The grid is one week's paper sheet, filled in live: Sunday to Saturday, In person and Remote per category, the in-person total, and the gate count per time block. The boxes above the grid add up the whole week shown, one per campus, and on All campuses the first box adds every campus together. It opens on the current week; the week label above each grid switches to another at once. It re-reads the sheet every minute, and the corner at the top says what is going on.</div>
+  <div class="foot">The grid is one week's paper sheet, filled in live: Sunday to Saturday, In person and Remote per category, the in-person total, and the gate count per time block. The boxes above the grid add up the whole week shown, one per campus. It opens on the current week; the week label above each grid switches to another at once. It re-reads the sheet every minute, and the corner at the top says what is going on.</div>
 </main>
 
 <div id="loadPane" class="scrim" hidden>
@@ -473,27 +472,18 @@ var CONFIG = <?!= configJson ?>;
     var days = weekDays(shownWeek());
     var tiles = el('tiles');
     tiles.innerHTML = '';
-    /* One box per campus on screen: the whole shown week, the same numbers as the grid's TOTAL (all questions) and GC Total rows.
-       On All campuses a first box adds every campus together. */
-    var boxes = d.campuses.filter(function (c) { return state.campus === 'all' || c.name === state.campus; }).map(function (c) {
+    /* One box per campus on screen: the whole shown week, the same numbers as the grid's TOTAL (all questions) and GC Total rows. */
+    d.campuses.filter(function (c) { return state.campus === 'all' || c.name === state.campus; }).forEach(function (c) {
       var model = boardFor(c, days), q = 0, g = 0;
       model.all.forEach(function (v) { q += v; });
       model.gateTotals.forEach(function (v) { g += v; });
-      return { name: c.name, q: q, g: g };
-    });
-    if (state.campus === 'all') {
-      var every = { name: 'All campuses', q: 0, g: 0, cls: ' all' };
-      boxes.forEach(function (b) { every.q += b.q; every.g += b.g; });
-      boxes.unshift(every);
-    }
-    boxes.forEach(function (b) {
       var t = document.createElement('div');
-      t.className = 'tile' + (b.cls || '');
+      t.className = 'tile';
       t.innerHTML = '<div class="name"></div><div class="when"></div><div class="nums"><div><div class="num"></div><div class="lbl">questions</div></div><div><div class="num"></div><div class="lbl">gate count</div></div></div>';
-      t.querySelector('.name').textContent = b.name;
+      t.querySelector('.name').textContent = c.name;
       t.querySelector('.when').textContent = 'Week of ' + prettyWeek(days[0]);
-      t.querySelectorAll('.num')[0].textContent = b.q.toLocaleString('en-US');
-      t.querySelectorAll('.num')[1].textContent = b.g.toLocaleString('en-US');
+      t.querySelectorAll('.num')[0].textContent = q.toLocaleString('en-US');
+      t.querySelectorAll('.num')[1].textContent = g.toLocaleString('en-US');
       tiles.appendChild(t);
     });
     dom.boards.forEach(function (board) {

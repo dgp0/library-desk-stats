@@ -54,7 +54,8 @@ time, as far back as the first week with anything recorded, and **Show**
 switches at once, with no waiting. A week with nothing recorded still shows,
 as zeros, and the window says so. The boxes above the grid add up the whole
 week shown, one per campus: its questions (the grid's TOTAL (all questions)
-row) and its gate count (the GC Total row). The page re-reads the sheet every minute;
+row) and its gate count (the GC Total row). On **All campuses** the first box,
+also named All campuses, adds every campus together for that week. The page re-reads the sheet every minute;
 the top right corner always says what is going on: Loading the sheet,
 Refreshing, Saving, Up to date, Could not read the sheet, or The last
 change was not saved.
